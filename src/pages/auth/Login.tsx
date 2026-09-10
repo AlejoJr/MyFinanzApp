@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/context/AuthContext"
+import { useRegistroAbierto } from "@/hooks/useRegistroAbierto"
 import { AuthLayout } from "./AuthLayout"
 
 export default function Login() {
   const { entrar } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  // Con el registro cerrado en Supabase, no se ofrece crear cuenta.
+  const registroAbierto = useRegistroAbierto()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -37,14 +40,16 @@ export default function Login() {
   return (
     <AuthLayout
       titulo="Inicia sesión"
-      descripcion="Accede a tus huchas y a tus gastos fijos."
+      descripcion="Accede a tus huchas y a tu presupuesto."
       pie={
-        <>
-          ¿Aún no tienes cuenta?{" "}
-          <Link to="/registro" className="font-medium text-primary hover:underline">
-            Regístrate
-          </Link>
-        </>
+        registroAbierto ? (
+          <>
+            ¿Aún no tienes cuenta?{" "}
+            <Link to="/registro" className="font-medium text-primary hover:underline">
+              Regístrate
+            </Link>
+          </>
+        ) : null
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>

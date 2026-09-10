@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { AlertCircle, Loader2, MailCheck } from "lucide-react"
+import { Cargando } from "@/components/layout/Cargando"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/context/AuthContext"
+import { useRegistroAbierto } from "@/hooks/useRegistroAbierto"
 import { AuthLayout } from "./AuthLayout"
 
 const MIN_PASSWORD = 6
@@ -13,6 +15,7 @@ const MIN_PASSWORD = 6
 export default function Registro() {
   const { registrar } = useAuth()
   const navigate = useNavigate()
+  const registroAbierto = useRegistroAbierto()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -54,6 +57,28 @@ export default function Registro() {
     }
   }
 
+  // Mientras se consulta a Supabase: mejor esperar que enseñar un formulario
+  // que un segundo después desaparece.
+  if (registroAbierto === null) return <Cargando />
+
+  if (!registroAbierto) {
+    return (
+      <AuthLayout
+        titulo="Registro cerrado"
+        descripcion="Esta app no admite cuentas nuevas."
+        pie={
+          <Link to="/login" className="font-medium text-primary hover:underline">
+            Ir a iniciar sesión
+          </Link>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Si ya tienes cuenta, entra con tu email y tu contraseña.
+        </p>
+      </AuthLayout>
+    )
+  }
+
   if (confirmarEmail) {
     return (
       <AuthLayout
@@ -80,7 +105,7 @@ export default function Registro() {
   return (
     <AuthLayout
       titulo="Crea tu cuenta"
-      descripcion="Empieza a organizar tus huchas y tus gastos fijos."
+      descripcion="Empieza a organizar tus huchas y tu presupuesto."
       pie={
         <>
           ¿Ya tienes cuenta?{" "}
