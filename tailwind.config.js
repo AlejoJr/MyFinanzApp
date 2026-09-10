@@ -170,5 +170,13 @@ export default {
       },
     },
   },
-  plugins: [tailwindcssAnimate, headlessuiPlugin, formsPlugin],
+  plugins: [
+    tailwindcssAnimate,
+    headlessuiPlugin,
+    // strategy "class": solo estiliza elementos con clases form-*. Con la
+    // estrategia por defecto pintaba un anillo de foco azul en TODOS los
+    // inputs, encima del anillo verde de shadcn. Tremor no usa form-*, asi
+    // que no pierde nada.
+    formsPlugin({ strategy: "class" }),
+  ],
 }

@@ -1,32 +1,45 @@
-import { Card, Metric, ProgressBar, Text } from "@tremor/react"
-import { formatEuro } from "@/lib/format"
-import { progresoHucha } from "@/types/domain"
+import { lazy, Suspense } from "react"
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { AppShell } from "@/components/layout/AppShell"
+import { Cargando } from "@/components/layout/Cargando"
+import { RutaProtegida } from "@/components/layout/RutaProtegida"
+import { RutaPublica } from "@/components/layout/RutaPublica"
+import { AuthProvider } from "@/context/AuthContext"
+import Login from "@/pages/auth/Login"
+import Registro from "@/pages/auth/Registro"
 
-/**
- * Placeholder del paso 1: solo verifica que Vite, Tailwind, shadcn y Tremor
- * compilan y pintan juntos. Se sustituye por el router en el paso 3.
- */
+// El dashboard arrastra Tremor y Recharts (~1 MB). Cargandolo con lazy(),
+// la pantalla de login no lo descarga.
+const Dashboard = lazy(() => import("@/pages/Dashboard"))
+
 export default function App() {
-  const demo = { nombre: "Fondo de emergencia", saldo_actual: 3200, objetivo: 6000 }
-  const progreso = progresoHucha(demo)
-
   return (
-    <main className="min-h-dvh bg-background px-4 py-10">
-      <div className="mx-auto w-full max-w-md space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">MyFinanzApp</h1>
-          <p className="text-sm text-muted-foreground">Stack operativo. Listo para el paso 2.</p>
-        </header>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          {/* Publicas: si ya hay sesion, redirigen al dashboard */}
+          <Route element={<RutaPublica />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/registro" element={<Registro />} />
+          </Route>
 
-        <Card decoration="top" decorationColor="emerald">
-          <Text>{demo.nombre}</Text>
-          <Metric>{formatEuro(demo.saldo_actual)}</Metric>
-          <ProgressBar value={progreso} color="emerald" className="mt-4" />
-          <Text className="mt-2">
-            {progreso.toFixed(0)} % de {formatEuro(demo.objetivo)}
-          </Text>
-        </Card>
-      </div>
-    </main>
+          {/* Privadas: exigen sesion y comparten la cabecera de AppShell */}
+          <Route element={<RutaProtegida />}>
+            <Route element={<AppShell />}>
+              <Route
+                index
+                element={
+                  <Suspense fallback={<Cargando className="min-h-[40vh]" />}>
+                    <Dashboard />
+                  </Suspense>
+                }
+              />
+            </Route>
+          </Route>
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }

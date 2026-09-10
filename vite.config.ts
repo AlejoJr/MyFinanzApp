@@ -9,19 +9,10 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  build: {
-    rollupOptions: {
-      output: {
-        // Recharts (vía Tremor) es la mitad del bundle: en su propio chunk
-        // para que no bloquee el primer render del login.
-        manualChunks: {
-          react: ["react", "react-dom", "react-router-dom"],
-          charts: ["@tremor/react", "recharts"],
-          supabase: ["@supabase/supabase-js"],
-        },
-      },
-    },
-  },
+  // Sin manualChunks a proposito: forzar Tremor/Recharts a un chunk fijo lo
+  // metia en el grafo estatico del entry y Vite lo precargaba en el login.
+  // Dejando que Rollup siga los lazy() de las rutas, cada pantalla se lleva
+  // sus dependencias y el login no descarga la libreria de graficos.
   server: {
     port: 5173,
   },
