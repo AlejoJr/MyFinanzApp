@@ -1,7 +1,12 @@
 /**
- * Tipos del esquema de Supabase.
+ * Tipos del esquema de Supabase (ver supabase/migrations/).
  * Regenerables con:
  *   npx supabase gen types typescript --project-id <ref> > src/types/database.ts
+ *
+ * Insert/Update omiten a proposito las columnas que gestiona la base de
+ * datos: usuario_id (default auth.uid()), created_at, y sobre todo
+ * huchas.saldo_actual y movimientos.usuario_id, que mantienen triggers.
+ * Enviarlas desde el cliente no da error, simplemente se descarta el valor.
  */
 import type { Periodicidad, TipoHucha, TipoMovimiento } from "./domain"
 
@@ -19,13 +24,9 @@ export interface Database {
           created_at: string
         }
         Insert: {
-          id?: string
-          usuario_id?: string
           nombre: string
           tipo: TipoHucha
-          objetivo: number
-          saldo_actual?: number
-          created_at?: string
+          objetivo?: number
         }
         Update: {
           nombre?: string
@@ -38,13 +39,13 @@ export interface Database {
         Row: {
           id: string
           hucha_id: string
+          usuario_id: string
           importe: number
           tipo: TipoMovimiento
           fecha: string
           nota: string | null
         }
         Insert: {
-          id?: string
           hucha_id: string
           importe: number
           tipo: TipoMovimiento
@@ -73,10 +74,9 @@ export interface Database {
           concepto: string
           importe: number
           periodicidad: Periodicidad
+          created_at: string
         }
         Insert: {
-          id?: string
-          usuario_id?: string
           concepto: string
           importe: number
           periodicidad: Periodicidad

@@ -34,6 +34,7 @@ export interface Hucha {
 export interface Movimiento {
   id: string
   hucha_id: string
+  usuario_id: string
   importe: number
   tipo: TipoMovimiento
   fecha: string
@@ -46,6 +47,7 @@ export interface GastoFijo {
   concepto: string
   importe: number
   periodicidad: Periodicidad
+  created_at: string
 }
 
 /** Porcentaje 0-100 de progreso hacia el objetivo. objetivo <= 0 => 0. */
