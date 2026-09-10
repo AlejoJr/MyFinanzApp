@@ -1,46 +1,50 @@
 import { useMemo } from "react"
 import {
   filasAnio,
+  GRUPOS,
   mesActual,
   mesesDelAnio,
   nombreMes,
   resumenMes,
   sumaCelda,
+  TITULO_GRUPO,
   type Mes,
+  type ResumenMes,
 } from "@/lib/presupuesto"
 import { cn } from "@/lib/utils"
-import { TIPOS_PARTIDA, TITULO_TIPO_PARTIDA, type PagoPartida, type Partida } from "@/types/domain"
+import type { PagoPartida, Partida } from "@/types/domain"
 
 // Sin símbolo € en cada celda: con 12 columnas solo añade ruido, como en tu Excel.
 const NUM = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 })
 
 const sumar = (valores: number[]) => valores.reduce((acc, v) => acc + Math.round(v * 100), 0) / 100
 
-const PIE = [
-  ["Entra", "ingresos"],
-  ["Gastos", "gastos"],
-  ["Ahorro", "ahorro"],
-  ["Libre", "libre"],
-] as const
+type CampoPie = keyof Pick<ResumenMes, "ingresos" | "gastos" | "ahorro" | "paraPagos" | "libre">
 
 /** Tu Excel dentro de la app: una fila por concepto, una columna por mes. */
 export function VistaAnio({
   partidas,
   pagos,
   anio,
+  huchasPago,
   onIrAMes,
 }: {
   partidas: Partida[]
   pagos: PagoPartida[]
   anio: number
+  /** Huchas "Para pagar": sus aportaciones van en su propio bloque. */
+  huchasPago: ReadonlySet<string>
   onIrAMes: (mes: Mes) => void
 }) {
   const hoy = mesActual()
   const meses = useMemo(() => mesesDelAnio(anio), [anio])
-  const filas = useMemo(() => filasAnio(partidas, pagos, anio), [partidas, pagos, anio])
+  const filas = useMemo(
+    () => filasAnio(partidas, pagos, anio, huchasPago),
+    [partidas, pagos, anio, huchasPago],
+  )
   const resumenes = useMemo(
-    () => meses.map((m) => resumenMes(partidas, pagos, m)),
-    [partidas, pagos, meses],
+    () => meses.map((m) => resumenMes(partidas, pagos, m, huchasPago)),
+    [partidas, pagos, meses, huchasPago],
   )
 
   if (filas.length === 0) {
@@ -50,6 +54,15 @@ export function VistaAnio({
       </p>
     )
   }
+
+  const conPagos = filas.some((f) => f.grupo === "pago")
+  const pie: [string, CampoPie][] = [
+    ["Entra", "ingresos"],
+    ["Gastos", "gastos"],
+    ["Ahorro", "ahorro"],
+    ...(conPagos ? ([["Para pagos", "paraPagos"]] as [string, CampoPie][]) : []),
+    ["Libre", "libre"],
+  ]
 
   return (
     <div className="space-y-2">
@@ -82,21 +95,21 @@ export function VistaAnio({
             </tr>
           </thead>
 
-          {TIPOS_PARTIDA.map((tipo) => {
-            const filasTipo = filas.filter((f) => f.tipo === tipo)
-            if (filasTipo.length === 0) return null
+          {GRUPOS.map((grupo) => {
+            const filasGrupo = filas.filter((f) => f.grupo === grupo)
+            if (filasGrupo.length === 0) return null
             return (
-              <tbody key={tipo} className="border-b">
+              <tbody key={grupo} className="border-b">
                 <tr>
                   <th
                     colSpan={14}
                     scope="colgroup"
                     className="sticky left-0 bg-background px-3 pb-1 pt-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                   >
-                    {TITULO_TIPO_PARTIDA[tipo]}
+                    {TITULO_GRUPO[grupo]}
                   </th>
                 </tr>
-                {filasTipo.map((fila) => (
+                {filasGrupo.map((fila) => (
                   <tr key={fila.clave} className="hover:bg-muted/30">
                     <th scope="row" className="sticky left-0 z-10 bg-background px-3 py-1.5 text-left font-normal">
                       <span className="block max-w-[11rem] truncate">{fila.concepto}</span>
@@ -128,7 +141,7 @@ export function VistaAnio({
           })}
 
           <tfoot className="bg-muted/50">
-            {PIE.map(([titulo, campo]) => {
+            {pie.map(([titulo, campo]) => {
               const esLibre = campo === "libre"
               const color = (v: number) => (esLibre ? (v < 0 ? "text-rose-600" : "text-emerald-700") : "")
               const total = sumar(resumenes.map((r) => r[campo]))

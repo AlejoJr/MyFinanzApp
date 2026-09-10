@@ -2,7 +2,13 @@ import type { PostgrestError } from "@supabase/supabase-js"
 import { supabase } from "./supabase"
 import { traducirErrorDb } from "./db-errors"
 import type { Database } from "@/types/database"
-import type { Hucha, Movimiento, TipoHucha, TipoMovimiento } from "@/types/domain"
+import type {
+  FinalidadHucha,
+  Hucha,
+  Movimiento,
+  TipoHucha,
+  TipoMovimiento,
+} from "@/types/domain"
 
 type Tablas = Database["public"]["Tables"]
 
@@ -29,8 +35,18 @@ export function fallo(error: PostgrestError): never {
 export interface DatosHucha {
   nombre: string
   tipo: TipoHucha
+  finalidad: FinalidadHucha
   objetivo: number
+  /** Solo "pago": último mes para reunir el dinero ("YYYY-MM-01"). */
+  fecha_limite: string | null
 }
+
+// Misma regla que la CHECK huchas_limite_solo_pago de 0007.
+const normalizarHucha = (d: DatosHucha) => ({
+  ...d,
+  nombre: d.nombre.trim(),
+  fecha_limite: d.finalidad === "pago" ? d.fecha_limite : null,
+})
 
 export async function listarHuchas(): Promise<Hucha[]> {
   const { data, error } = await supabase
@@ -51,7 +67,7 @@ export async function obtenerHucha(id: string): Promise<Hucha> {
 export async function crearHucha(datos: DatosHucha): Promise<Hucha> {
   const { data, error } = await supabase
     .from("huchas")
-    .insert({ ...datos, nombre: datos.nombre.trim() })
+    .insert(normalizarHucha(datos))
     .select()
     .single()
   if (error) fallo(error)
@@ -61,7 +77,7 @@ export async function crearHucha(datos: DatosHucha): Promise<Hucha> {
 export async function actualizarHucha(id: string, datos: DatosHucha): Promise<Hucha> {
   const { data, error } = await supabase
     .from("huchas")
-    .update({ ...datos, nombre: datos.nombre.trim() })
+    .update(normalizarHucha(datos))
     .eq("id", id)
     .select()
     .single()
@@ -76,6 +92,19 @@ export async function eliminarHucha(id: string): Promise<void> {
   const { data, error } = await supabase.from("huchas").delete().eq("id", id).select("id")
   if (error) fallo(error)
   if (!data?.length) throw new Error("Esta hucha no existe o ya se había borrado.")
+}
+
+/**
+ * Paga una hucha "Para pagar": retira todo su saldo, detiene sus
+ * aportaciones del presupuesto y la archiva como pagada. Lo hace Postgres
+ * (0007) en una sola transacción.
+ */
+export async function pagarHucha(id: string, nota?: string): Promise<void> {
+  const { error } = await supabase.rpc("pagar_hucha", {
+    p_hucha: id,
+    p_nota: nota?.trim() || null,
+  })
+  if (error) fallo(error)
 }
 
 // ------------------------------------------------------------- Movimientos

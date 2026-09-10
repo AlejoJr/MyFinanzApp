@@ -9,16 +9,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { formatEuro } from "@/lib/format"
-import { cuota, type LineaMes, type ResumenMes } from "@/lib/presupuesto"
+import { cuota, GRUPOS, TITULO_GRUPO, type Grupo, type LineaMes, type ResumenMes } from "@/lib/presupuesto"
 import { cn } from "@/lib/utils"
-import {
-  ETIQUETA_TIPO_PARTIDA,
-  TIPOS_PARTIDA,
-  TITULO_TIPO_PARTIDA,
-  type Hucha,
-  type Partida,
-  type TipoPartida,
-} from "@/types/domain"
+import type { Hucha, Partida, TipoPartida } from "@/types/domain"
+
+const ANADIR: Record<Grupo, { tipo: TipoPartida; texto: string }> = {
+  ingreso: { tipo: "ingreso", texto: "Añadir ingreso" },
+  gasto: { tipo: "gasto", texto: "Añadir gasto" },
+  ahorro: { tipo: "ahorro", texto: "Añadir ahorro" },
+  // Una aportación a un pago es una partida de ahorro cuya hucha es "Para pagar".
+  pago: { tipo: "ahorro", texto: "Añadir aportación a un pago" },
+}
 
 interface Acciones {
   onEditar: (partida: Partida) => void
@@ -38,23 +39,30 @@ interface Props extends Acciones {
 }
 
 export function VistaMes({ resumen, huchas, puedeMarcar, marcandoId, onMarcar, onAnadir, ...acciones }: Props) {
-  const subtotal: Record<TipoPartida, number> = {
+  const subtotal: Record<Grupo, number> = {
     ingreso: resumen.ingresos,
     gasto: resumen.gastos,
     ahorro: resumen.ahorro,
+    pago: resumen.paraPagos,
   }
+  // El bloque "Para pagos" solo aparece si ese mes hay algo que apartar.
+  const conPagos = resumen.lineas.pago.length > 0
+  const grupos = GRUPOS.filter((g) => g !== "pago" || conPagos)
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={cn("grid grid-cols-2 gap-3", conPagos ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
         <Kpi titulo="Entra" valor={resumen.ingresos} />
         <Kpi titulo="Gastos" valor={resumen.gastos} />
         <Kpi titulo="Ahorro" valor={resumen.ahorro} />
+        {conPagos && <Kpi titulo="Para pagos" valor={resumen.paraPagos} />}
         <Kpi
           titulo="Libre"
           valor={resumen.libre}
           clase={resumen.libre < 0 ? "text-rose-600" : "text-emerald-700"}
           destacado
+          // Con 5 cifras, el Libre ocupa la fila entera en el móvil.
+          className={conPagos ? "col-span-2 lg:col-span-1" : undefined}
         />
       </div>
 
@@ -76,23 +84,23 @@ export function VistaMes({ resumen, huchas, puedeMarcar, marcandoId, onMarcar, o
         )
       )}
 
-      {TIPOS_PARTIDA.map((tipo) => {
-        const lineas = resumen.lineas[tipo]
+      {grupos.map((grupo) => {
+        const lineas = resumen.lineas[grupo]
         return (
-          <section key={tipo} className="space-y-2" aria-labelledby={`titulo-${tipo}`}>
+          <section key={grupo} className="space-y-2" aria-labelledby={`titulo-${grupo}`}>
             <div className="flex items-center justify-between gap-2">
-              <h3 id={`titulo-${tipo}`} className="text-base font-semibold">
-                {TITULO_TIPO_PARTIDA[tipo]}
+              <h3 id={`titulo-${grupo}`} className="text-base font-semibold">
+                {TITULO_GRUPO[grupo]}
               </h3>
               <div className="flex items-center gap-1">
                 <span className="text-sm tabular-nums text-muted-foreground">
-                  {formatEuro(subtotal[tipo])}
+                  {formatEuro(subtotal[grupo])}
                 </span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onAnadir(tipo)}
-                  aria-label={`Añadir ${ETIQUETA_TIPO_PARTIDA[tipo].toLowerCase()}`}
+                  onClick={() => onAnadir(ANADIR[grupo].tipo)}
+                  aria-label={ANADIR[grupo].texto}
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Añadir</span>
@@ -132,14 +140,16 @@ function Kpi({
   valor,
   clase,
   destacado = false,
+  className,
 }: {
   titulo: string
   valor: number
   clase?: string
   destacado?: boolean
+  className?: string
 }) {
   return (
-    <Card className="p-4" decoration={destacado ? "top" : undefined} decorationColor="emerald">
+    <Card className={cn("p-4", className)} decoration={destacado ? "top" : undefined} decorationColor="emerald">
       <Text>{titulo}</Text>
       <Metric className={cn("text-2xl tabular-nums", clase)}>{formatEuro(valor)}</Metric>
     </Card>

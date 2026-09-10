@@ -5,10 +5,12 @@
  *
  * Insert/Update omiten a proposito las columnas que gestiona la base de
  * datos: usuario_id (default auth.uid()), created_at, huchas.saldo_actual,
- * movimientos.usuario_id y pagos_partida.movimiento_id, que mantienen
- * triggers. Enviarlas desde el cliente no da error: se descarta el valor.
+ * huchas.pagada_at, movimientos.usuario_id y pagos_partida.movimiento_id,
+ * que mantienen triggers y funciones. Enviarlas desde el cliente no da
+ * error: se descarta el valor.
  */
 import type {
+  FinalidadHucha,
   Frecuencia,
   TipoHucha,
   TipoMovimiento,
@@ -24,19 +26,26 @@ export interface Database {
           usuario_id: string
           nombre: string
           tipo: TipoHucha
+          finalidad: FinalidadHucha
           objetivo: number
           saldo_actual: number
+          fecha_limite: string | null
+          pagada_at: string | null
           created_at: string
         }
         Insert: {
           nombre: string
           tipo: TipoHucha
+          finalidad?: FinalidadHucha
           objetivo?: number
+          fecha_limite?: string | null
         }
         Update: {
           nombre?: string
           tipo?: TipoHucha
+          finalidad?: FinalidadHucha
           objetivo?: number
+          fecha_limite?: string | null
         }
         Relationships: []
       }
@@ -150,9 +159,14 @@ export interface Database {
         Args: { p_partida: string; p_desde: string; p_importe: number }
         Returns: string
       }
+      pagar_hucha: {
+        Args: { p_hucha: string; p_nota?: string | null }
+        Returns: undefined
+      }
     }
     Enums: {
       tipo_hucha: TipoHucha
+      finalidad_hucha: FinalidadHucha
       tipo_movimiento: TipoMovimiento
       tipo_partida: TipoPartida
       frecuencia_partida: Frecuencia

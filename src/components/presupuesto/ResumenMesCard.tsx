@@ -1,21 +1,24 @@
+import { useMemo } from "react"
 import { Link } from "react-router-dom"
 import { Card, ProgressBar, Text } from "@tremor/react"
 import { ArrowRight } from "lucide-react"
 import { usePresupuesto } from "@/hooks/usePresupuesto"
 import { formatEuro } from "@/lib/format"
-import { anioDe, mesActual, nombreMes, resumenMes } from "@/lib/presupuesto"
+import { anioDe, huchasParaPagar, mesActual, nombreMes, resumenMes } from "@/lib/presupuesto"
 import { cn } from "@/lib/utils"
+import type { Hucha } from "@/types/domain"
 
 /** El mes en curso en el dashboard: lo que entra, lo que sale y lo que queda libre. */
-export function ResumenMesCard() {
+export function ResumenMesCard({ huchas }: { huchas: Hucha[] }) {
   const mes = mesActual()
   const { datos, error } = usePresupuesto(anioDe(mes))
+  const huchasPago = useMemo(() => huchasParaPagar(huchas), [huchas])
 
   // Si falla, el dashboard sigue funcionando: las huchas no dependen de esto.
   if (error && !datos) return null
   if (!datos) return <Card className="h-40 animate-pulse" aria-hidden="true" />
 
-  const r = resumenMes(datos.partidas, datos.pagos, mes)
+  const r = resumenMes(datos.partidas, datos.pagos, mes, huchasPago)
 
   if (r.total === 0) {
     return (
@@ -32,10 +35,12 @@ export function ResumenMesCard() {
     )
   }
 
+  const conPagos = r.lineas.pago.length > 0
   const cifras = [
     { titulo: "Entra", valor: r.ingresos, clase: "" },
     { titulo: "Gastos", valor: r.gastos, clase: "" },
     { titulo: "Ahorro", valor: r.ahorro, clase: "" },
+    ...(conPagos ? [{ titulo: "Para pagos", valor: r.paraPagos, clase: "" }] : []),
     { titulo: "Libre", valor: r.libre, clase: r.libre < 0 ? "text-rose-600" : "text-emerald-700" },
   ]
 
@@ -52,7 +57,7 @@ export function ResumenMesCard() {
         </Link>
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+      <dl className={cn("mt-3 grid grid-cols-2 gap-x-4 gap-y-3", conPagos ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
         {cifras.map((c) => (
           <div key={c.titulo}>
             <dt className="text-sm text-muted-foreground">{c.titulo}</dt>

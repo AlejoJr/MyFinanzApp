@@ -1,6 +1,9 @@
 export const TIPOS_HUCHA = ["ahorro", "inversion", "hipoteca", "seguro", "otro"] as const
 export type TipoHucha = (typeof TIPOS_HUCHA)[number]
 
+export const FINALIDADES_HUCHA = ["ahorro", "pago"] as const
+export type FinalidadHucha = (typeof FINALIDADES_HUCHA)[number]
+
 export const TIPOS_MOVIMIENTO = ["ingreso", "retirada"] as const
 export type TipoMovimiento = (typeof TIPOS_MOVIMIENTO)[number]
 
@@ -16,6 +19,11 @@ export const ETIQUETA_TIPO_HUCHA: Record<TipoHucha, string> = {
   hipoteca: "Hipoteca",
   seguro: "Seguro",
   otro: "Otro",
+}
+
+export const ETIQUETA_FINALIDAD: Record<FinalidadHucha, string> = {
+  ahorro: "Ahorro",
+  pago: "Para pagar",
 }
 
 export const ETIQUETA_TIPO_PARTIDA: Record<TipoPartida, string> = {
@@ -42,8 +50,17 @@ export interface Hucha {
   usuario_id: string
   nombre: string
   tipo: TipoHucha
+  /**
+   * ahorro: dinero tuyo que se queda.
+   * pago: apartado para un pago futuro (un regalo, el coche...).
+   */
+  finalidad: FinalidadHucha
   objetivo: number
   saldo_actual: number
+  /** Solo "pago": último mes para reunir el dinero ("YYYY-MM-01"). */
+  fecha_limite: string | null
+  /** Solo "pago": null mientras está activa; fecha en que se pagó. */
+  pagada_at: string | null
   created_at: string
 }
 

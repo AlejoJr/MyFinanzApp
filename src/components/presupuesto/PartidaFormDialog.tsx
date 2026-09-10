@@ -250,11 +250,15 @@ export function PartidaFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={SIN_HUCHA}>Ninguna</SelectItem>
-                  {huchas.map((h) => (
-                    <SelectItem key={h.id} value={h.id}>
-                      {h.nombre}
-                    </SelectItem>
-                  ))}
+                  {/* Las pagadas no admiten aportaciones; salvo la ya vinculada, para no dejar el campo vacío. */}
+                  {huchas
+                    .filter((h) => !h.pagada_at || h.id === partida?.hucha_id)
+                    .map((h) => (
+                      <SelectItem key={h.id} value={h.id}>
+                        {h.nombre}
+                        {h.finalidad === "pago" ? " · para pagar" : ""}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">

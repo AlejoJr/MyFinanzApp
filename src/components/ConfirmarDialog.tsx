@@ -14,7 +14,7 @@ import {
 import { buttonVariants } from "@/components/ui/button"
 
 /**
- * Confirmación de una acción destructiva. Si `onConfirmar` lanza un error,
+ * Confirmación de una acción importante. Si `onConfirmar` lanza un error,
  * se muestra dentro del diálogo y este no se cierra.
  */
 export function ConfirmarDialog({
@@ -24,6 +24,7 @@ export function ConfirmarDialog({
   descripcion,
   textoConfirmar,
   onConfirmar,
+  variante = "destructive",
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -31,6 +32,8 @@ export function ConfirmarDialog({
   descripcion: ReactNode
   textoConfirmar: string
   onConfirmar: () => Promise<void>
+  /** "destructive" (rojo) para borrar; "default" para acciones como pagar. */
+  variante?: "destructive" | "default"
 }) {
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +75,7 @@ export function ConfirmarDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={enviando}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            className={buttonVariants({ variant: "destructive" })}
+            className={buttonVariants({ variant: variante })}
             disabled={enviando}
             onClick={(e) => {
               // Evita que Radix cierre el diálogo antes de saber si ha ido bien.

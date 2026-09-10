@@ -7,14 +7,17 @@ import type { Movimiento } from "@/types/domain"
 export function MovimientosLista({
   movimientos,
   onEliminar,
+  soloLectura = false,
 }: {
   movimientos: Movimiento[]
   onEliminar: (movimiento: Movimiento) => void
+  /** Huchas pagadas: su historial se consulta pero no se toca. */
+  soloLectura?: boolean
 }) {
   if (movimientos.length === 0) {
     return (
       <p className="rounded-lg border border-dashed bg-background px-4 py-10 text-center text-sm text-muted-foreground">
-        Aún no hay movimientos. Registra el primero con el formulario.
+        {soloLectura ? "Esta hucha no tuvo movimientos." : "Aún no hay movimientos. Registra el primero con el formulario."}
       </p>
     )
   }
@@ -53,15 +56,17 @@ export function MovimientosLista({
               {formatEuro(m.importe)}
             </span>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-              onClick={() => onEliminar(m)}
-              aria-label={`Eliminar ${descripcion} de ${formatEuro(m.importe)}`}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-            </Button>
+            {!soloLectura && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                onClick={() => onEliminar(m)}
+                aria-label={`Eliminar ${descripcion} de ${formatEuro(m.importe)}`}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            )}
           </li>
         )
       })}

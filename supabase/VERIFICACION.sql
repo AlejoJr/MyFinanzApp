@@ -1,10 +1,10 @@
 -- =====================================================================
 -- MyFinanzApp · Verificacion post-migracion
--- Ejecutar en el SQL Editor tras aplicar 0001 a 0006.
+-- Ejecutar en el SQL Editor tras aplicar 0001 a 0007.
 --
 -- El editor de Supabase solo muestra el resultado de la ULTIMA consulta,
 -- asi que las comprobaciones van unidas en una sola tabla. Deben salir
--- 19 filas y todas deben empezar por OK.
+-- 24 filas y todas deben empezar por OK.
 -- =====================================================================
 
 with
@@ -47,11 +47,11 @@ sin_anon as (
     and tablename in (select nombre from tablas)
     and 'anon' = any (roles)
 ),
--- 4) Triggers: 4 de huchas/movimientos + 4 del presupuesto
+-- 4) Triggers: 4 de huchas/movimientos, 4 del presupuesto, 1 de 0007
 triggers as (
   select
-    format('%s %s triggers creados (esperados 8)',
-           case when count(*) = 8 then 'OK' else 'FALLO' end, count(*)) as resultado,
+    format('%s %s triggers creados (esperados 9)',
+           case when count(*) = 9 then 'OK' else 'FALLO' end, count(*)) as resultado,
     4 as orden, '' as sub
   from pg_trigger t
   join pg_class c on c.oid = t.tgrelid
@@ -70,7 +70,8 @@ columnas as (
   from information_schema.columns
   where table_schema = 'public'
     and (   (table_name = 'movimientos'   and column_name = 'usuario_id')
-         or (table_name = 'huchas'        and column_name = 'saldo_actual')
+         or (table_name = 'huchas'        and column_name in ('saldo_actual', 'finalidad',
+                                                              'fecha_limite', 'pagada_at'))
          or (table_name = 'partidas'      and column_name = 'hucha_id')
          or (table_name = 'pagos_partida' and column_name = 'movimiento_id'))
   group by table_name, column_name
@@ -119,15 +120,28 @@ sin_gastos_fijos as (
          else 'FALLO gastos_fijos sigue existiendo (ejecuta 0005)' end as resultado,
     9 as orden, '' as sub
 ),
--- 10) 0006: cambiar_importe_partida existe y anon no puede ejecutarla
-funcion as (
+-- 10) 0006 y 0007: funciones llamables desde la app, pero no por anon
+funciones as (
   select
-    case when to_regprocedure('public.cambiar_importe_partida(uuid,date,numeric)') is null
-           then 'FALLO falta la funcion cambiar_importe_partida (ejecuta 0006)'
-         when has_function_privilege('anon', 'public.cambiar_importe_partida(uuid,date,numeric)', 'execute')
-           then 'FALLO anon puede ejecutar cambiar_importe_partida'
-         else 'OK funcion cambiar_importe_partida solo para usuarios con sesion' end as resultado,
-    10 as orden, '' as sub
+    case when to_regprocedure(f.firma) is null
+           then format('FALLO falta la funcion %s', f.nombre)
+         when has_function_privilege('anon', f.firma, 'execute')
+           then format('FALLO anon puede ejecutar %s', f.nombre)
+         else format('OK funcion %s solo para usuarios con sesion', f.nombre) end as resultado,
+    10 as orden, f.nombre as sub
+  from (values ('cambiar_importe_partida', 'public.cambiar_importe_partida(uuid,date,numeric)'),
+               ('pagar_hucha',             'public.pagar_hucha(uuid,text)')) as f(nombre, firma)
+),
+-- 11) 0007: el blindaje de huchas tambien actua al crear
+alta_hucha as (
+  select
+    case when coalesce(bool_or((t.tgtype::int & 4) = 4), false)
+         then 'OK una hucha nueva empieza siempre con saldo 0'
+         else 'FALLO una hucha puede crearse con saldo inventado (ejecuta 0007)' end as resultado,
+    11 as orden, '' as sub
+  from pg_trigger t
+  where t.tgname = 'huchas_proteger_campos'
+    and t.tgrelid = 'public.huchas'::regclass
 )
 select resultado
 from (
@@ -140,6 +154,7 @@ from (
   union all select * from restriccion
   union all select * from bloqueo
   union all select * from sin_gastos_fijos
-  union all select * from funcion
+  union all select * from funciones
+  union all select * from alta_hucha
 ) t
 order by orden, sub;

@@ -12,21 +12,35 @@ import { useHuchas } from "@/hooks/useHuchas"
 import { formatEuro, formatPorcentaje } from "@/lib/format"
 import type { Hucha } from "@/types/domain"
 
+const sumar = (valores: number[]) => valores.reduce((acc, v) => acc + Math.round(v * 100), 0) / 100
+
 function calcularResumen(huchas: Hucha[]) {
-  const saldoTotal = huchas.reduce((acc, h) => acc + h.saldo_actual, 0)
-  const conObjetivo = huchas.filter((h) => h.objetivo > 0)
-  const objetivoTotal = conObjetivo.reduce((acc, h) => acc + h.objetivo, 0)
+  const activas = huchas.filter((h) => !h.pagada_at)
+  const deAhorro = activas.filter((h) => h.finalidad === "ahorro")
+  // Primero lo que vence antes; las que no tienen fecha, al final.
+  const paraPagar = activas
+    .filter((h) => h.finalidad === "pago")
+    .sort((a, b) => (a.fecha_limite ?? "9999").localeCompare(b.fecha_limite ?? "9999"))
+  const pagadas = huchas.filter((h) => h.pagada_at)
+
+  const conObjetivo = deAhorro.filter((h) => h.objetivo > 0)
+  const objetivoTotal = sumar(conObjetivo.map((h) => h.objetivo))
   // Cada hucha aporta como mucho su objetivo: que una se pase de su meta no
   // debe tapar que otra va atrasada.
-  const ahorradoHaciaObjetivo = conObjetivo.reduce(
-    (acc, h) => acc + Math.min(h.saldo_actual, h.objetivo),
-    0,
-  )
-  const progresoGlobal = objetivoTotal > 0 ? (ahorradoHaciaObjetivo / objetivoTotal) * 100 : null
-  const distribucion = huchas
-    .filter((h) => h.saldo_actual > 0)
-    .map((h) => ({ nombre: h.nombre, saldo: h.saldo_actual }))
-  return { saldoTotal, objetivoTotal, progresoGlobal, distribucion }
+  const hastaObjetivo = sumar(conObjetivo.map((h) => Math.min(h.saldo_actual, h.objetivo)))
+
+  return {
+    deAhorro,
+    paraPagar,
+    pagadas,
+    // Tu dinero y el que ya tiene destino, por separado: el del coche no es ahorro.
+    tuAhorro: sumar(deAhorro.map((h) => h.saldo_actual)),
+    apartado: sumar(paraPagar.map((h) => h.saldo_actual)),
+    progresoAhorro: objetivoTotal > 0 ? (hastaObjetivo * 100) / objetivoTotal : null,
+    distribucion: deAhorro
+      .filter((h) => h.saldo_actual > 0)
+      .map((h) => ({ nombre: h.nombre, saldo: h.saldo_actual })),
+  }
 }
 
 export default function Dashboard() {
@@ -55,6 +69,7 @@ export default function Dashboard() {
   }
 
   const colores = resumen.distribucion.map((_, i) => PALETA_GRAFICOS[i % PALETA_GRAFICOS.length]!)
+  const pendientes = resumen.paraPagar.length
 
   return (
     <div className="space-y-6">
@@ -69,7 +84,7 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      <ResumenMesCard />
+      <ResumenMesCard huchas={huchas} />
 
       {/* Hay datos pero la última recarga falló: se enseñan los que había. */}
       {error && (
@@ -87,8 +102,8 @@ export default function Dashboard() {
           <div className="space-y-1">
             <p className="font-medium">Todavía no tienes ninguna hucha</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Crea una para tu fondo de emergencia, una inversión o la entrada de un piso, y ve
-              registrando lo que ahorras.
+              Crea una para tu fondo de emergencia o una inversión, o para reunir el dinero de un
+              pago futuro, como un regalo o el coche.
             </p>
           </div>
           <Button onClick={() => setCreando(true)}>
@@ -100,53 +115,49 @@ export default function Dashboard() {
         <>
           <div className="grid gap-4 sm:grid-cols-3">
             <Card decoration="top" decorationColor="emerald">
-              <Text>Saldo total</Text>
-              <Metric className="tabular-nums">{formatEuro(resumen.saldoTotal)}</Metric>
+              <Text>Tu ahorro</Text>
+              <Metric className="tabular-nums">{formatEuro(resumen.tuAhorro)}</Metric>
               <Text className="mt-1">
-                en {huchas.length} {huchas.length === 1 ? "hucha" : "huchas"}
+                en {resumen.deAhorro.length} {resumen.deAhorro.length === 1 ? "hucha" : "huchas"}
+              </Text>
+            </Card>
+
+            <Card decoration="top" decorationColor="amber">
+              <Text>Apartado para pagos</Text>
+              <Metric className="tabular-nums">{formatEuro(resumen.apartado)}</Metric>
+              <Text className="mt-1">
+                {pendientes === 0
+                  ? "ningún pago pendiente"
+                  : `${pendientes} ${pendientes === 1 ? "pago pendiente" : "pagos pendientes"}`}
               </Text>
             </Card>
 
             <Card>
-              <Text>Objetivo total</Text>
-              <Metric className="tabular-nums">
-                {resumen.objetivoTotal > 0 ? formatEuro(resumen.objetivoTotal) : "—"}
-              </Metric>
-              <Text className="mt-1">suma de las metas definidas</Text>
-            </Card>
-
-            <Card>
-              <Text>Progreso global</Text>
-              {resumen.progresoGlobal === null ? (
+              <Text>Progreso de tu ahorro</Text>
+              {resumen.progresoAhorro === null ? (
                 <>
                   <Metric>—</Metric>
-                  <Text className="mt-1">ninguna hucha tiene objetivo</Text>
+                  <Text className="mt-1">ninguna hucha de ahorro tiene objetivo</Text>
                 </>
               ) : (
                 <>
-                  <Metric className="tabular-nums">
-                    {formatPorcentaje(resumen.progresoGlobal)}
-                  </Metric>
-                  <ProgressBar value={resumen.progresoGlobal} color="emerald" className="mt-3" />
+                  <Metric className="tabular-nums">{formatPorcentaje(resumen.progresoAhorro)}</Metric>
+                  <ProgressBar value={resumen.progresoAhorro} color="emerald" className="mt-3" />
                 </>
               )}
             </Card>
           </div>
 
-          <section className="space-y-3" aria-labelledby="titulo-huchas">
-            <h3 id="titulo-huchas" className="text-base font-semibold">
-              Tus huchas
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {huchas.map((h) => (
-                <HuchaCard key={h.id} hucha={h} />
-              ))}
-            </div>
-          </section>
+          {resumen.deAhorro.length > 0 && (
+            <SeccionHuchas id="titulo-ahorro" titulo="Tus huchas" huchas={resumen.deAhorro} />
+          )}
+          {resumen.paraPagar.length > 0 && (
+            <SeccionHuchas id="titulo-pagar" titulo="Para pagar" huchas={resumen.paraPagar} />
+          )}
 
           {resumen.distribucion.length > 1 && (
             <Card className="lg:max-w-xl">
-              <Title>Distribución del saldo</Title>
+              <Title>Distribución de tu ahorro</Title>
               <DonutChart
                 className="mt-4 h-48"
                 data={resumen.distribucion}
@@ -163,6 +174,19 @@ export default function Dashboard() {
               />
             </Card>
           )}
+
+          {resumen.pagadas.length > 0 && (
+            <details className="group rounded-lg border bg-background">
+              <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground">
+                Pagadas ({resumen.pagadas.length})
+              </summary>
+              <div className="grid gap-4 border-t p-4 sm:grid-cols-2 lg:grid-cols-3">
+                {resumen.pagadas.map((h) => (
+                  <HuchaCard key={h.id} hucha={h} />
+                ))}
+              </div>
+            </details>
+          )}
         </>
       )}
 
@@ -172,5 +196,20 @@ export default function Dashboard() {
         onGuardada={() => void recargar()}
       />
     </div>
+  )
+}
+
+function SeccionHuchas({ id, titulo, huchas }: { id: string; titulo: string; huchas: Hucha[] }) {
+  return (
+    <section className="space-y-3" aria-labelledby={id}>
+      <h3 id={id} className="text-base font-semibold">
+        {titulo}
+      </h3>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {huchas.map((h) => (
+          <HuchaCard key={h.id} hucha={h} />
+        ))}
+      </div>
+    </section>
   )
 }

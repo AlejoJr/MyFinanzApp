@@ -14,7 +14,15 @@ import { useHuchas } from "@/hooks/useHuchas"
 import { usePresupuesto } from "@/hooks/usePresupuesto"
 import { desmarcar, eliminarPartida, marcarHecho } from "@/lib/api-presupuesto"
 import { formatEuro } from "@/lib/format"
-import { anioDe, mesActual, nombreMes, resumenMes, type LineaMes, type Mes } from "@/lib/presupuesto"
+import {
+  anioDe,
+  huchasParaPagar,
+  mesActual,
+  nombreMes,
+  resumenMes,
+  type LineaMes,
+  type Mes,
+} from "@/lib/presupuesto"
 import { cn } from "@/lib/utils"
 import type { Partida, TipoPartida } from "@/types/domain"
 
@@ -27,6 +35,8 @@ export default function Presupuesto() {
   const presupuesto = usePresupuesto(anio)
   const huchas = useHuchas()
   const listaHuchas = huchas.datos ?? []
+  // Las aportaciones a huchas "Para pagar" van en su propio bloque.
+  const huchasPago = useMemo(() => huchasParaPagar(huchas.datos ?? []), [huchas.datos])
 
   // Cada diálogo guarda su partida aparte del "abierto" para que el contenido
   // no desaparezca durante la animación de cierre.
@@ -48,8 +58,8 @@ export default function Presupuesto() {
   // de otro año: mejor un spinner que casillas desmarcadas por error.
   const datos = presupuesto.datos?.anio === anio ? presupuesto.datos : undefined
   const resumen = useMemo(
-    () => (datos ? resumenMes(datos.partidas, datos.pagos, mes) : null),
-    [datos, mes],
+    () => (datos ? resumenMes(datos.partidas, datos.pagos, mes, huchasPago) : null),
+    [datos, mes, huchasPago],
   )
 
   const abrirNueva = (tipo: TipoPartida) => setForm({ abierto: true, partida: undefined, tipo })
@@ -57,16 +67,17 @@ export default function Presupuesto() {
 
   const alternar = async ({ partida, pago }: LineaMes) => {
     const hucha = listaHuchas.find((h) => h.id === partida.hucha_id)
+    const destino = hucha?.finalidad === "pago" ? "apartados para" : "ingresados en"
     setMarcandoId(partida.id)
     try {
       if (pago) {
         await desmarcar(pago.id)
         if (pago.movimiento_id && hucha) {
-          toast.success(`Se ha deshecho el ingreso de ${formatEuro(partida.importe)} en ${hucha.nombre}`)
+          toast.success(`Se ha deshecho la aportación de ${formatEuro(partida.importe)} a ${hucha.nombre}`)
         }
       } else {
         await marcarHecho(partida.id, mes)
-        if (hucha) toast.success(`${formatEuro(partida.importe)} ingresados en ${hucha.nombre}`)
+        if (hucha) toast.success(`${formatEuro(partida.importe)} ${destino} ${hucha.nombre}`)
       }
       await presupuesto.recargar()
       // Una aportación a hucha cambia su saldo.
@@ -142,6 +153,7 @@ export default function Presupuesto() {
         partidas={datos.partidas}
         pagos={datos.pagos}
         anio={anio}
+        huchasPago={huchasPago}
         onIrAMes={(m) => {
           setMes(m)
           setVista("mes")
@@ -158,7 +170,7 @@ export default function Presupuesto() {
         <div className="space-y-1">
           <h2 className="text-xl font-semibold tracking-tight">Presupuesto</h2>
           <p className="text-sm text-muted-foreground">
-            Lo que entra, lo que sale y lo que ahorras cada mes.
+            Lo que entra, lo que sale y lo que apartas cada mes.
           </p>
         </div>
         <Button onClick={() => abrirNueva("gasto")}>

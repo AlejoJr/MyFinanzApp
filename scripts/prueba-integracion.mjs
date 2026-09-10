@@ -218,7 +218,82 @@ try {
   const real = (tramos ?? []).map((t) => [Number(t.importe), t.mes_inicio, t.mes_fin])
   ok(JSON.stringify(real) === JSON.stringify(esperado), "72 € hasta el mes pasado y 34 € desde este mes", JSON.stringify(real))
 
-  console.log("10) Borrar la hucha borra sus movimientos (cascada)")
+  console.log("10) Huchas «Para pagar» (0007)")
+  const inventada = await supabase
+    .from("huchas")
+    .insert({ nombre: "__prueba_inventada__", tipo: "otro", objetivo: 10, saldo_actual: 5000 })
+    .select()
+    .single()
+  ok(
+    !inventada.error && Number(inventada.data?.saldo_actual) === 0,
+    "una hucha nueva empieza con saldo 0 aunque se envíe otro",
+    inventada.error?.message ?? `saldo ${inventada.data?.saldo_actual}`,
+  )
+  const limiteEnAhorro = await supabase
+    .from("huchas")
+    .insert({ nombre: "__prueba_limite__", tipo: "otro", finalidad: "ahorro", fecha_limite: mesHoy })
+  ok(limiteEnAhorro.error?.code === "23514", "una hucha de ahorro no puede tener fecha límite", limiteEnAhorro.error?.code ?? "se aceptó")
+  const pagarAhorro = await supabase.rpc("pagar_hucha", { p_hucha: huchaId })
+  ok(Boolean(pagarAhorro.error), "una hucha de ahorro no se puede «pagar»", "se aceptó")
+
+  const { data: hp, error: errHp } = await supabase
+    .from("huchas")
+    .insert({ nombre: "__prueba_pago__", tipo: "otro", finalidad: "pago", objetivo: 100, fecha_limite: sumarMes(mesHoy, 3) })
+    .select()
+    .single()
+  ok(!errHp && hp, "se crea una hucha para pagar con fecha límite", errHp?.message)
+  if (!hp) throw new Error("Sin hucha para pagar no se puede seguir. ¿Has ejecutado 0007?")
+  const { data: aporte } = await supabase
+    .from("partidas")
+    .insert({ tipo: "ahorro", concepto: "__prueba_pago__", importe: 20, mes_inicio: sumarMes(mesHoy, -1), mes_fin: sumarMes(mesHoy, 3), hucha_id: hp.id })
+    .select()
+    .single()
+  if (!aporte) throw new Error("No se pudo crear la aportación de prueba.")
+  const marcaPasada = await supabase
+    .from("pagos_partida").insert({ partida_id: aporte.id, mes: sumarMes(mesHoy, -1) }).select().single()
+  s = await saldo(hp.id)
+  ok(!marcaPasada.error && s === 20, "aportar el mes pasado deja 20 € apartados", marcaPasada.error?.message ?? `saldo ${s}`)
+
+  const pagoHucha = await supabase.rpc("pagar_hucha", { p_hucha: hp.id })
+  ok(!pagoHucha.error, "se paga la hucha", pagoHucha.error?.message)
+  const { data: hpDespues } = await supabase.from("huchas").select("saldo_actual, pagada_at").eq("id", hp.id).single()
+  ok(
+    Number(hpDespues?.saldo_actual) === 0 && Boolean(hpDespues?.pagada_at),
+    "queda a 0 € y archivada como pagada",
+    JSON.stringify(hpDespues),
+  )
+  const { data: salida } = await supabase
+    .from("movimientos").select("importe, nota").eq("hucha_id", hp.id).eq("tipo", "retirada").maybeSingle()
+  ok(
+    Number(salida?.importe) === 20 && salida?.nota === "Pago: __prueba_pago__",
+    "el pago queda en su historial como retirada de 20 €",
+    JSON.stringify(salida),
+  )
+  const { data: aporteDespues } = await supabase.from("partidas").select("mes_fin").eq("id", aporte.id).single()
+  ok(
+    aporteDespues?.mes_fin === sumarMes(mesHoy, -1),
+    "la aportación mensual se detiene en el último mes aportado",
+    aporteDespues?.mes_fin,
+  )
+
+  const movEnPagada = await movimiento(hp.id, "ingreso", 5)
+  ok(Boolean(movEnPagada.error), "una hucha pagada no admite movimientos", "se aceptó")
+  const desmarcarPagada = await supabase
+    .from("pagos_partida").delete().eq("id", marcaPasada.data?.id ?? "").select("id")
+  ok(Boolean(desmarcarPagada.error), "no se puede desmarcar una aportación de una hucha pagada", "se aceptó")
+  await supabase.from("huchas").update({ pagada_at: null }).eq("id", hp.id)
+  const { data: sigue } = await supabase.from("huchas").select("pagada_at").eq("id", hp.id).single()
+  ok(Boolean(sigue?.pagada_at), "pagada_at no se puede quitar desde la API")
+  const otraVez = await supabase.rpc("pagar_hucha", { p_hucha: hp.id })
+  ok(Boolean(otraVez.error), "no se puede pagar dos veces", "se aceptó")
+  const borrarPagada = await supabase.from("huchas").delete().eq("id", hp.id).select("id")
+  ok(
+    !borrarPagada.error && borrarPagada.data?.length === 1,
+    "una hucha pagada sí se puede eliminar entera",
+    borrarPagada.error?.message,
+  )
+
+  console.log("11) Borrar la hucha borra sus movimientos (cascada)")
   const del = await supabase.from("huchas").delete().eq("id", huchaId).select("id")
   ok(!del.error && del.data?.length === 1, "se borra la hucha", del.error?.message)
   const quedan = await contarMovimientos(huchaId)
@@ -228,13 +303,13 @@ try {
   fallos++
   console.error(`  ERROR  ${e.message}`)
 } finally {
-  // Por concepto: limpia también restos de una ejecución anterior que se cortara.
-  // Los "_" van escapados porque en LIKE significan "cualquier carácter".
+  // Por nombre: limpia también restos de una ejecución anterior que se
+  // cortara. Los "_" van escapados porque en LIKE significan "cualquier
+  // carácter". Primero las huchas (sus movimientos y meses marcados caen en
+  // cascada) y después las partidas que quedan sin hucha: al revés, desmarcar
+  // la aportación de una hucha pagada lo impediría la propia base de datos.
+  await supabase.from("huchas").delete().like("nombre", "\\_\\_prueba%")
   await supabase.from("partidas").delete().like("concepto", "\\_\\_prueba%")
-  if (huchaId) {
-    await supabase.from("huchas").delete().eq("id", huchaId)
-    console.log("\n  (limpieza: hucha de prueba borrada)")
-  }
   await supabase.auth.signOut()
 }
 
