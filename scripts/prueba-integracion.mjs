@@ -231,8 +231,12 @@ try {
   )
   const limiteEnAhorro = await supabase
     .from("huchas")
-    .insert({ nombre: "__prueba_limite__", tipo: "otro", finalidad: "ahorro", fecha_limite: mesHoy })
-  ok(limiteEnAhorro.error?.code === "23514", "una hucha de ahorro no puede tener fecha límite", limiteEnAhorro.error?.code ?? "se aceptó")
+    .insert({ nombre: "__prueba_limite__", tipo: "otro", finalidad: "ahorro", objetivo: 100, fecha_limite: mesHoy })
+  ok(!limiteEnAhorro.error, "una hucha de ahorro puede tener fecha objetivo (0008)", limiteEnAhorro.error?.message)
+  const fechaMala = await supabase
+    .from("huchas")
+    .insert({ nombre: "__prueba_fecha_mala__", tipo: "otro", fecha_limite: mesHoy.slice(0, 8) + "15" })
+  ok(fechaMala.error?.code === "23514", "la fecha objetivo tiene que ser un mes (día 1)", fechaMala.error?.code ?? "se aceptó")
   const pagarAhorro = await supabase.rpc("pagar_hucha", { p_hucha: huchaId })
   ok(Boolean(pagarAhorro.error), "una hucha de ahorro no se puede «pagar»", "se aceptó")
 

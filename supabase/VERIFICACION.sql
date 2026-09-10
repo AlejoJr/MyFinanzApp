@@ -1,10 +1,10 @@
 -- =====================================================================
 -- MyFinanzApp · Verificacion post-migracion
--- Ejecutar en el SQL Editor tras aplicar 0001 a 0007.
+-- Ejecutar en el SQL Editor tras aplicar 0001 a 0008.
 --
 -- El editor de Supabase solo muestra el resultado de la ULTIMA consulta,
 -- asi que las comprobaciones van unidas en una sola tabla. Deben salir
--- 24 filas y todas deben empezar por OK.
+-- 25 filas y todas deben empezar por OK.
 -- =====================================================================
 
 with
@@ -142,6 +142,17 @@ alta_hucha as (
   from pg_trigger t
   where t.tgname = 'huchas_proteger_campos'
     and t.tgrelid = 'public.huchas'::regclass
+),
+-- 12) 0008: las huchas de ahorro pueden tener fecha objetivo
+objetivo_ahorro as (
+  select
+    case when count(*) = 0
+         then 'OK las huchas de ahorro pueden tener fecha objetivo'
+         else 'FALLO las huchas de ahorro no admiten fecha objetivo (ejecuta 0008)' end as resultado,
+    12 as orden, '' as sub
+  from pg_constraint
+  where conname = 'huchas_limite_solo_pago'
+    and conrelid = 'public.huchas'::regclass
 )
 select resultado
 from (
@@ -156,5 +167,6 @@ from (
   union all select * from sin_gastos_fijos
   union all select * from funciones
   union all select * from alta_hucha
+  union all select * from objetivo_ahorro
 ) t
 order by orden, sub;

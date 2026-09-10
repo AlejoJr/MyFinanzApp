@@ -37,16 +37,11 @@ export interface DatosHucha {
   tipo: TipoHucha
   finalidad: FinalidadHucha
   objetivo: number
-  /** Solo "pago": último mes para reunir el dinero ("YYYY-MM-01"). */
+  /** Último mes para reunir el objetivo ("YYYY-MM-01"). Obligatorio en "pago", opcional en "ahorro". */
   fecha_limite: string | null
 }
 
-// Misma regla que la CHECK huchas_limite_solo_pago de 0007.
-const normalizarHucha = (d: DatosHucha) => ({
-  ...d,
-  nombre: d.nombre.trim(),
-  fecha_limite: d.finalidad === "pago" ? d.fecha_limite : null,
-})
+const normalizarHucha = (d: DatosHucha) => ({ ...d, nombre: d.nombre.trim() })
 
 export async function listarHuchas(): Promise<Hucha[]> {
   const { data, error } = await supabase

@@ -94,8 +94,11 @@ function Detalle({ id }: { id: string }) {
   const aportacion = presupuesto.datos
     ? aportacionDe(h.id, presupuesto.datos.partidas, presupuesto.datos.pagos, mesHoy)
     : null
-  // Sin el presupuesto cargado no se sabe si hay aportación: mejor no opinar.
-  const plan = esPago && !pagada && presupuesto.datos ? planPago(h, mesHoy, aportacion) : null
+  // Plan: siempre en las "Para pagar"; en las de ahorro, solo si tienen fecha
+  // y objetivo. Sin el presupuesto cargado no se sabe si hay aportación.
+  const conPlan =
+    !pagada && presupuesto.datos !== undefined && (esPago || (h.fecha_limite !== null && !sinObjetivo))
+  const plan = conPlan ? planPago(h, mesHoy, aportacion) : null
 
   const anadirAporte = async (cuota: number) => {
     if (!h.fecha_limite) return
@@ -143,6 +146,11 @@ function Detalle({ id }: { id: string }) {
               {esPago && !pagada && (
                 <Badge className="border-transparent bg-amber-100 font-normal text-amber-800 shadow-none hover:bg-amber-100">
                   Para pagar{h.fecha_limite ? ` · hasta ${nombreMes(h.fecha_limite)}` : ""}
+                </Badge>
+              )}
+              {!esPago && h.fecha_limite && (
+                <Badge className="border-transparent bg-emerald-100 font-normal text-emerald-800 shadow-none hover:bg-emerald-100">
+                  Objetivo en {nombreMes(h.fecha_limite)}
                 </Badge>
               )}
               {pagada && (
@@ -210,6 +218,7 @@ function Detalle({ id }: { id: string }) {
       {plan && (
         <PanelPlan
           plan={plan}
+          esPago={esPago}
           aportacion={aportacion}
           fechaLimite={h.fecha_limite}
           anadiendo={anadiendoAporte}
@@ -355,12 +364,14 @@ function Caja({ tono, children }: { tono: keyof typeof TONO; children: ReactNode
 /** ¿Llegas a tiempo? Lo que dice planPago(), en frases. */
 function PanelPlan({
   plan,
+  esPago,
   aportacion,
   fechaLimite,
   anadiendo,
   onAnadir,
 }: {
   plan: PlanPago
+  esPago: boolean
   aportacion: Aportacion | null
   fechaLimite: string | null
   anadiendo: boolean
@@ -374,9 +385,13 @@ function PanelPlan({
     case "pagada":
       return null
     case "lista":
-      return (
+      return esPago ? (
         <Caja tono="bien">
           Ya tienes todo el dinero. Cuando lo pagues, pulsa <strong>Pagar</strong> para cerrar la hucha.
+        </Caja>
+      ) : (
+        <Caja tono="bien">
+          ¡Objetivo cumplido! Puedes seguir ahorrando o ponerte una meta nueva en «Editar».
         </Caja>
       )
     case "al_dia":
@@ -418,14 +433,15 @@ function PanelPlan({
     case "vencida":
       return (
         <Caja tono="mal">
-          El plazo terminó en {fechaLimite ? nombreMes(fechaLimite) : "—"} y faltan{" "}
-          {formatEuro(plan.falta)}. Amplía la fecha en «Editar» o paga con lo que hay.
+          {esPago ? "El plazo terminó" : "La fecha objetivo era"} en{" "}
+          {fechaLimite ? nombreMes(fechaLimite) : "—"} y faltan {formatEuro(plan.falta)}. Amplía la
+          fecha en «Editar»{esPago ? " o paga con lo que hay" : ""}.
         </Caja>
       )
     case "sin_limite":
       return (
         <Caja tono="neutro">
-          Sin fecha límite. Añádela en «Editar» y te diré cuánto apartar cada mes.
+          Sin fecha. Añádela en «Editar» y te diré cuánto apartar cada mes.
         </Caja>
       )
   }

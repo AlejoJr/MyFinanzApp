@@ -18,8 +18,8 @@ export function HuchaCard({ hucha }: { hucha: Hucha }) {
 
   const subtitulo = pagada
     ? `Pagada el ${formatFecha(hucha.pagada_at!)}`
-    : esPago && hucha.fecha_limite
-      ? `Hasta ${nombreMes(hucha.fecha_limite)}`
+    : hucha.fecha_limite
+      ? `${esPago ? "Hasta" : "Objetivo en"} ${nombreMes(hucha.fecha_limite)}`
       : ETIQUETA_TIPO_HUCHA[hucha.tipo]
 
   return (

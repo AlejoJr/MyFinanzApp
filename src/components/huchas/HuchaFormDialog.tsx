@@ -60,7 +60,7 @@ interface Props {
   onGuardada: () => void
 }
 
-/** Cuánto hay que apartar al mes desde este mes hasta la fecha límite. */
+/** Cuánto hay que apartar al mes desde este mes hasta la fecha objetivo. */
 function calcularAporte(objetivo: number | null, saldoInicial: number | null, limite: Mes) {
   if (objetivo === null || saldoInicial === null) return null
   const meses = mesesEntre(mesActual(), limite) + 1
@@ -76,6 +76,8 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
   const [finalidad, setFinalidad] = useState<FinalidadHucha>("ahorro")
   const [objetivo, setObjetivo] = useState("")
   const [saldoInicial, setSaldoInicial] = useState("")
+  // En "Para pagar" la fecha es obligatoria; en "Ahorro", opcional.
+  const [conFecha, setConFecha] = useState(false)
   const [limite, setLimite] = useState<Mes>(() => sumarMeses(mesActual(), 5))
   const [crearAporte, setCrearAporte] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -89,15 +91,17 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
     setFinalidad(hucha?.finalidad ?? "ahorro")
     setObjetivo(hucha && hucha.objetivo > 0 ? importeATexto(hucha.objetivo) : "")
     setSaldoInicial("")
+    setConFecha(Boolean(hucha?.fecha_limite))
     setLimite(hucha?.fecha_limite ?? sumarMeses(mesActual(), 5))
     setCrearAporte(true)
     setError(null)
   }, [open, hucha])
 
   const esPago = finalidad === "pago"
+  const usaFecha = esPago || conFecha
   const objetivoNum = objetivo.trim() === "" ? 0 : parseImporte(objetivo)
   const saldoNum = saldoInicial.trim() === "" ? 0 : parseImporte(saldoInicial)
-  const aporte = !editando && esPago ? calcularAporte(objetivoNum, saldoNum, limite) : null
+  const aporte = !editando && usaFecha ? calcularAporte(objetivoNum, saldoNum, limite) : null
 
   const cambiarFinalidad = (valor: FinalidadHucha) => {
     setFinalidad(valor)
@@ -116,11 +120,12 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
       return setError("El importe no es válido. Escríbelo así: 5000 o 5000,50.")
     }
     if (esPago && objetivoNum <= 0) return setError("Indica cuánto tienes que pagar.")
+    if (usaFecha && objetivoNum <= 0) return setError("Para fijar una fecha, indica el objetivo.")
     if (saldoNum === null) {
       return setError("El saldo inicial no es un importe válido. Escríbelo así: 1200 o 1200,50.")
     }
-    if (esPago && limite < mesActual() && limite !== hucha?.fecha_limite) {
-      return setError("La fecha límite no puede ser un mes pasado.")
+    if (usaFecha && limite < mesActual() && limite !== hucha?.fecha_limite) {
+      return setError("La fecha no puede ser un mes pasado.")
     }
 
     setGuardando(true)
@@ -130,7 +135,7 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
         tipo,
         finalidad,
         objetivo: objetivoNum,
-        fecha_limite: esPago ? limite : null,
+        fecha_limite: usaFecha ? limite : null,
       }
 
       if (hucha) {
@@ -291,10 +296,30 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
             </p>
           </div>
 
-          {esPago && (
+          {esPago ? (
             <div className="space-y-2">
               <Label htmlFor="hucha-limite">Último mes para reunirlo</Label>
               <CampoMes id="hucha-limite" value={limite} onChange={setLimite} disabled={guardando} />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[hsl(var(--primary))]"
+                  checked={conFecha}
+                  onChange={(e) => setConFecha(e.target.checked)}
+                  disabled={guardando}
+                />
+                Quiero reunirlo en una fecha
+              </label>
+              {conFecha ? (
+                <CampoMes id="hucha-limite" value={limite} onChange={setLimite} disabled={guardando} />
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Con fecha, la app calcula cuánto apartar cada mes y te dice si vas al día.
+                </p>
+              )}
             </div>
           )}
 
@@ -316,8 +341,13 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
             </div>
           )}
 
-          {!editando && esPago && (
-            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3">
+          {!editando && usaFecha && (
+            <div
+              className={cn(
+                "space-y-2 rounded-md border p-3",
+                esPago ? "border-amber-200 bg-amber-50/60" : "border-emerald-200 bg-emerald-50/60",
+              )}
+            >
               <label className="flex items-start gap-2 text-sm font-medium">
                 <input
                   type="checkbox"
@@ -339,17 +369,17 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
                 ) : objetivoNum !== null && saldoNum !== null && objetivoNum > 0 && saldoNum >= objetivoNum ? (
                   "Ya tienes todo el dinero: no hace falta aportación."
                 ) : (
-                  "Indica el importe y el último mes para calcular la cuota."
+                  "Indica el importe y el mes para calcular la cuota."
                 )}
               </p>
             </div>
           )}
 
-          {editando && esPago && (
+          {editando && usaFecha && (
             <p className="text-xs text-muted-foreground">
-              Si cambias el importe o la fecha, la aportación del presupuesto no se ajusta sola:
-              cámbiala en Presupuesto con «Cambiar importe». En la hucha verás la cuota que
-              necesitas.
+              Si cambias el objetivo o la fecha, la aportación del presupuesto no se ajusta sola:
+              en la hucha verás la cuota que necesitas, y la cambias en Presupuesto con «Cambiar
+              importe».
             </p>
           )}
         </form>

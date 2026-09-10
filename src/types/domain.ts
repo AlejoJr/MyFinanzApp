@@ -57,7 +57,10 @@ export interface Hucha {
   finalidad: FinalidadHucha
   objetivo: number
   saldo_actual: number
-  /** Solo "pago": último mes para reunir el dinero ("YYYY-MM-01"). */
+  /**
+   * Último mes para reunir el objetivo ("YYYY-MM-01"). En "pago" es cuándo
+   * toca pagar; en "ahorro" es opcional ("quiero 3.000 € en junio").
+   */
   fecha_limite: string | null
   /** Solo "pago": null mientras está activa; fecha en que se pagó. */
   pagada_at: string | null
