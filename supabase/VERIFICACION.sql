@@ -1,6 +1,6 @@
 -- =====================================================================
 -- MyFinanzApp · Verificacion post-migracion
--- Ejecutar en el SQL Editor tras aplicar 0001, 0002 y 0003.
+-- Ejecutar en el SQL Editor tras aplicar 0001 a 0004.
 --
 -- El editor de Supabase solo muestra el resultado de la ULTIMA consulta,
 -- asi que las comprobaciones van unidas en una sola tabla. Todas las
@@ -14,7 +14,7 @@ rls as (
     format('%s RLS en %s (activada=%s, forzada=%s)',
            case when c.relrowsecurity and c.relforcerowsecurity then 'OK' else 'FALLO' end,
            c.relname, c.relrowsecurity, c.relforcerowsecurity) as resultado,
-    1 as orden, c.relname as sub
+    1 as orden, c.relname::text as sub
   from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public'
@@ -26,7 +26,7 @@ politicas as (
     format('%s %s politicas en %s (esperadas 4)',
            case when count(*) = 4 then 'OK' else 'FALLO' end,
            count(*), tablename) as resultado,
-    2 as orden, tablename as sub
+    2 as orden, tablename::text as sub
   from pg_policies
   where schemaname = 'public'
     and tablename in ('huchas', 'movimientos', 'gastos_fijos')
@@ -57,13 +57,13 @@ triggers as (
     and not t.tgisinternal
     and c.relname in ('huchas', 'movimientos', 'gastos_fijos')
 ),
--- 5) Columnas clave del punto (b) y del punto (a)
+-- 5) Columnas clave de los puntos (a) y (b)
 columnas as (
   select
     format('%s columna %s.%s',
            case when count(*) = 1 then 'OK' else 'FALLO falta' end,
            table_name, column_name) as resultado,
-    5 as orden, table_name || column_name as sub
+    5 as orden, (table_name || column_name)::text as sub
   from information_schema.columns
   where table_schema = 'public'
     and (   (table_name = 'movimientos'  and column_name = 'usuario_id')
@@ -81,6 +81,29 @@ indices as (
   where schemaname = 'public'
     and indexname in ('huchas_usuario_id_idx', 'movimientos_usuario_id_idx',
                       'movimientos_hucha_fecha_idx', 'gastos_fijos_usuario_id_idx')
+),
+-- 7) 0004: una hucha no puede quedar en negativo
+restriccion as (
+  select
+    case when count(*) = 1
+         then 'OK restriccion huchas_saldo_no_negativo creada'
+         else 'FALLO falta la restriccion huchas_saldo_no_negativo (ejecuta 0004)' end as resultado,
+    7 as orden, '' as sub
+  from pg_constraint
+  where conname = 'huchas_saldo_no_negativo'
+    and conrelid = 'public.huchas'::regclass
+),
+-- 8) 0004: el recalculo bloquea la fila de la hucha antes de sumar
+bloqueo as (
+  select
+    case when coalesce(bool_or(p.prosrc ilike '%for update%'), false)
+         then 'OK el recalculo de saldo bloquea la hucha (sin carreras)'
+         else 'FALLO el recalculo de saldo no bloquea la hucha (ejecuta 0004)' end as resultado,
+    8 as orden, '' as sub
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = 'aplicar_saldo_hucha'
 )
 select resultado
 from (
@@ -90,5 +113,7 @@ from (
   union all select * from triggers
   union all select * from columnas
   union all select * from indices
+  union all select * from restriccion
+  union all select * from bloqueo
 ) t
 order by orden, sub;

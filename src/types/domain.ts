@@ -53,7 +53,7 @@ export interface GastoFijo {
 /** Porcentaje 0-100 de progreso hacia el objetivo. objetivo <= 0 => 0. */
 export function progresoHucha(hucha: Pick<Hucha, "saldo_actual" | "objetivo">): number {
   if (!hucha.objetivo || hucha.objetivo <= 0) return 0
-  return Math.min(100, Math.max(0, (hucha.saldo_actual / hucha.objetivo) * 100))
+  return Math.min(100, Math.max(0, (hucha.saldo_actual * 100) / hucha.objetivo))
 }
 
 /** Coste mensual equivalente de un gasto fijo. */

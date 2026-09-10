@@ -1,8 +1,9 @@
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { Link, Outlet } from "react-router-dom"
 import { LogOut, PiggyBank } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/context/AuthContext"
+import { Cargando } from "./Cargando"
 
 export function AppShell() {
   const { user, salir } = useAuth()
@@ -48,7 +49,10 @@ export function AppShell() {
       </header>
 
       <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        <Outlet />
+        {/* Las paginas privadas son lazy(): la cabecera se queda fija mientras cargan. */}
+        <Suspense fallback={<Cargando className="min-h-[40vh]" />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   )
