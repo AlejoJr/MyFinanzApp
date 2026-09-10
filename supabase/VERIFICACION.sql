@@ -1,14 +1,17 @@
 -- =====================================================================
 -- MyFinanzApp · Verificacion post-migracion
--- Ejecutar en el SQL Editor tras aplicar 0001 a 0004.
+-- Ejecutar en el SQL Editor tras aplicar 0001 a 0006.
 --
 -- El editor de Supabase solo muestra el resultado de la ULTIMA consulta,
--- asi que las comprobaciones van unidas en una sola tabla. Todas las
--- filas deben empezar por OK.
+-- asi que las comprobaciones van unidas en una sola tabla. Deben salir
+-- 19 filas y todas deben empezar por OK.
 -- =====================================================================
 
 with
--- 1) RLS activada y forzada en las tres tablas
+tablas(nombre) as (
+  values ('huchas'), ('movimientos'), ('partidas'), ('pagos_partida')
+),
+-- 1) RLS activada y forzada
 rls as (
   select
     format('%s RLS en %s (activada=%s, forzada=%s)',
@@ -18,7 +21,7 @@ rls as (
   from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public'
-    and c.relname in ('huchas', 'movimientos', 'gastos_fijos')
+    and c.relname in (select nombre from tablas)
 ),
 -- 2) Cuatro politicas por tabla (select / insert / update / delete)
 politicas as (
@@ -29,10 +32,10 @@ politicas as (
     2 as orden, tablename::text as sub
   from pg_policies
   where schemaname = 'public'
-    and tablename in ('huchas', 'movimientos', 'gastos_fijos')
+    and tablename in (select nombre from tablas)
   group by tablename
 ),
--- 3) Ninguna politica debe estar abierta al rol anon
+-- 3) Ninguna politica abierta al rol anon
 sin_anon as (
   select
     case when count(*) = 0
@@ -41,23 +44,23 @@ sin_anon as (
     3 as orden, '' as sub
   from pg_policies
   where schemaname = 'public'
-    and tablename in ('huchas', 'movimientos', 'gastos_fijos')
+    and tablename in (select nombre from tablas)
     and 'anon' = any (roles)
 ),
--- 4) Los cinco triggers deben existir
+-- 4) Triggers: 4 de huchas/movimientos + 4 del presupuesto
 triggers as (
   select
-    format('%s %s triggers creados (esperados 5)',
-           case when count(*) = 5 then 'OK' else 'FALLO' end, count(*)) as resultado,
+    format('%s %s triggers creados (esperados 8)',
+           case when count(*) = 8 then 'OK' else 'FALLO' end, count(*)) as resultado,
     4 as orden, '' as sub
   from pg_trigger t
   join pg_class c on c.oid = t.tgrelid
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public'
     and not t.tgisinternal
-    and c.relname in ('huchas', 'movimientos', 'gastos_fijos')
+    and c.relname in (select nombre from tablas)
 ),
--- 5) Columnas clave de los puntos (a) y (b)
+-- 5) Columnas clave
 columnas as (
   select
     format('%s columna %s.%s',
@@ -66,21 +69,24 @@ columnas as (
     5 as orden, (table_name || column_name)::text as sub
   from information_schema.columns
   where table_schema = 'public'
-    and (   (table_name = 'movimientos'  and column_name = 'usuario_id')
-         or (table_name = 'huchas'       and column_name = 'saldo_actual')
-         or (table_name = 'gastos_fijos' and column_name = 'created_at'))
+    and (   (table_name = 'movimientos'   and column_name = 'usuario_id')
+         or (table_name = 'huchas'        and column_name = 'saldo_actual')
+         or (table_name = 'partidas'      and column_name = 'hucha_id')
+         or (table_name = 'pagos_partida' and column_name = 'movimiento_id'))
   group by table_name, column_name
 ),
 -- 6) Indices
 indices as (
   select
-    format('%s %s indices propios creados (esperados 4)',
-           case when count(*) = 4 then 'OK' else 'FALLO' end, count(*)) as resultado,
+    format('%s %s indices propios creados (esperados 7)',
+           case when count(*) = 7 then 'OK' else 'FALLO' end, count(*)) as resultado,
     6 as orden, '' as sub
   from pg_indexes
   where schemaname = 'public'
     and indexname in ('huchas_usuario_id_idx', 'movimientos_usuario_id_idx',
-                      'movimientos_hucha_fecha_idx', 'gastos_fijos_usuario_id_idx')
+                      'movimientos_hucha_fecha_idx', 'partidas_usuario_idx',
+                      'partidas_hucha_idx', 'pagos_partida_usuario_mes_idx',
+                      'pagos_partida_movimiento_idx')
 ),
 -- 7) 0004: una hucha no puede quedar en negativo
 restriccion as (
@@ -104,6 +110,24 @@ bloqueo as (
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public'
     and p.proname = 'aplicar_saldo_hucha'
+),
+-- 9) 0005: gastos_fijos retirada
+sin_gastos_fijos as (
+  select
+    case when to_regclass('public.gastos_fijos') is null
+         then 'OK tabla gastos_fijos retirada (sustituida por partidas)'
+         else 'FALLO gastos_fijos sigue existiendo (ejecuta 0005)' end as resultado,
+    9 as orden, '' as sub
+),
+-- 10) 0006: cambiar_importe_partida existe y anon no puede ejecutarla
+funcion as (
+  select
+    case when to_regprocedure('public.cambiar_importe_partida(uuid,date,numeric)') is null
+           then 'FALLO falta la funcion cambiar_importe_partida (ejecuta 0006)'
+         when has_function_privilege('anon', 'public.cambiar_importe_partida(uuid,date,numeric)', 'execute')
+           then 'FALLO anon puede ejecutar cambiar_importe_partida'
+         else 'OK funcion cambiar_importe_partida solo para usuarios con sesion' end as resultado,
+    10 as orden, '' as sub
 )
 select resultado
 from (
@@ -115,5 +139,7 @@ from (
   union all select * from indices
   union all select * from restriccion
   union all select * from bloqueo
+  union all select * from sin_gastos_fijos
+  union all select * from funcion
 ) t
 order by orden, sub;

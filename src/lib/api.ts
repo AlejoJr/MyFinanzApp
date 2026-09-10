@@ -19,7 +19,8 @@ const aMovimiento = (r: Tablas["movimientos"]["Row"]): Movimiento => ({
   importe: Number(r.importe),
 })
 
-function fallo(error: PostgrestError): never {
+/** Lanza el error de Supabase ya traducido para el usuario. */
+export function fallo(error: PostgrestError): never {
   throw new Error(traducirErrorDb(error))
 }
 

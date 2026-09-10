@@ -5,6 +5,7 @@ import { HuchaCard } from "@/components/huchas/HuchaCard"
 import { HuchaFormDialog } from "@/components/huchas/HuchaFormDialog"
 import { PALETA_GRAFICOS } from "@/components/huchas/estilos"
 import { Cargando } from "@/components/layout/Cargando"
+import { ResumenMesCard } from "@/components/presupuesto/ResumenMesCard"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { useHuchas } from "@/hooks/useHuchas"
@@ -60,13 +61,15 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <h2 className="text-xl font-semibold tracking-tight">Resumen</h2>
-          <p className="text-sm text-muted-foreground">Tus huchas de un vistazo.</p>
+          <p className="text-sm text-muted-foreground">Tu mes y tus huchas de un vistazo.</p>
         </div>
         <Button onClick={() => setCreando(true)}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           Nueva hucha
         </Button>
       </div>
+
+      <ResumenMesCard />
 
       {/* Hay datos pero la última recarga falló: se enseñan los que había. */}
       {error && (

@@ -4,11 +4,16 @@
  *   npx supabase gen types typescript --project-id <ref> > src/types/database.ts
  *
  * Insert/Update omiten a proposito las columnas que gestiona la base de
- * datos: usuario_id (default auth.uid()), created_at, y sobre todo
- * huchas.saldo_actual y movimientos.usuario_id, que mantienen triggers.
- * Enviarlas desde el cliente no da error, simplemente se descarta el valor.
+ * datos: usuario_id (default auth.uid()), created_at, huchas.saldo_actual,
+ * movimientos.usuario_id y pagos_partida.movimiento_id, que mantienen
+ * triggers. Enviarlas desde el cliente no da error: se descarta el valor.
  */
-import type { Periodicidad, TipoHucha, TipoMovimiento } from "./domain"
+import type {
+  Frecuencia,
+  TipoHucha,
+  TipoMovimiento,
+  TipoPartida,
+} from "./domain"
 
 export interface Database {
   public: {
@@ -67,34 +72,90 @@ export interface Database {
           },
         ]
       }
-      gastos_fijos: {
+      partidas: {
         Row: {
           id: string
           usuario_id: string
+          tipo: TipoPartida
           concepto: string
           importe: number
-          periodicidad: Periodicidad
+          frecuencia: Frecuencia
+          mes_inicio: string
+          mes_fin: string | null
+          hucha_id: string | null
           created_at: string
         }
         Insert: {
+          tipo: TipoPartida
           concepto: string
           importe: number
-          periodicidad: Periodicidad
+          frecuencia?: Frecuencia
+          mes_inicio: string
+          mes_fin?: string | null
+          hucha_id?: string | null
         }
         Update: {
+          tipo?: TipoPartida
           concepto?: string
           importe?: number
-          periodicidad?: Periodicidad
+          frecuencia?: Frecuencia
+          mes_inicio?: string
+          mes_fin?: string | null
+          hucha_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "partidas_hucha_id_fkey"
+            columns: ["hucha_id"]
+            referencedRelation: "huchas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pagos_partida: {
+        Row: {
+          id: string
+          usuario_id: string
+          partida_id: string
+          mes: string
+          movimiento_id: string | null
+          created_at: string
+        }
+        Insert: {
+          partida_id: string
+          mes: string
+        }
+        Update: {
+          partida_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagos_partida_partida_id_fkey"
+            columns: ["partida_id"]
+            referencedRelation: "partidas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_partida_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            referencedRelation: "movimientos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: Record<never, never>
-    Functions: Record<never, never>
+    Functions: {
+      cambiar_importe_partida: {
+        Args: { p_partida: string; p_desde: string; p_importe: number }
+        Returns: string
+      }
+    }
     Enums: {
       tipo_hucha: TipoHucha
       tipo_movimiento: TipoMovimiento
-      periodicidad: Periodicidad
+      tipo_partida: TipoPartida
+      frecuencia_partida: Frecuencia
     }
     CompositeTypes: Record<never, never>
   }

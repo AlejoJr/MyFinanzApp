@@ -12,10 +12,15 @@ export function traducirErrorDb(
   const code = error.code ?? ""
   const message = error.message ?? ""
 
-  // Lo lanza el trigger movimientos_set_usuario (0003).
+  // Lo lanzan los triggers de 0003 y 0006.
   if (/no existe o no te pertenece/i.test(message)) {
-    return "Esa hucha no existe o no te pertenece."
+    return /partida/i.test(message)
+      ? "Esa partida no existe o no te pertenece."
+      : "Esa hucha no existe o no te pertenece."
   }
+
+  // raise exception sin errcode (0006): mensajes escritos para el usuario.
+  if (code === "P0001" && message) return message
 
   if (code === "23514" || /check constraint/i.test(message)) {
     if (/huchas_saldo_no_negativo/.test(message)) {
@@ -28,6 +33,12 @@ export function traducirErrorDb(
     }
     if (/nota_check/.test(message)) return "La nota no puede superar los 280 caracteres."
     return "Algún dato no cumple las reglas de la base de datos."
+  }
+
+  if (code === "23505") {
+    return /pagos_partida_unico/.test(message)
+      ? "Ese mes ya estaba marcado como hecho."
+      : "Ese registro ya existe."
   }
 
   if (code === "42501" || /row-level security/i.test(message)) {

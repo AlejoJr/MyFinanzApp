@@ -12,6 +12,7 @@ import Registro from "@/pages/auth/Registro"
 // el login no las descarga. El <Suspense> que las espera está en AppShell.
 const Dashboard = lazy(() => import("@/pages/Dashboard"))
 const HuchaDetalle = lazy(() => import("@/pages/HuchaDetalle"))
+const Presupuesto = lazy(() => import("@/pages/Presupuesto"))
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route index element={<Dashboard />} />
               <Route path="huchas/:id" element={<HuchaDetalle />} />
+              <Route path="presupuesto" element={<Presupuesto />} />
             </Route>
           </Route>
 

@@ -147,7 +147,78 @@ try {
   const ajena = await movimiento("00000000-0000-0000-0000-000000000000", "ingreso", 10)
   ok(Boolean(ajena.error), "insertar en una hucha que no es tuya se rechaza", "se aceptó")
 
-  console.log("8) Borrar la hucha borra sus movimientos (cascada)")
+  console.log("8) Presupuesto: marcar un ahorro lo ingresa en su hucha (0005/0006)")
+  // Mismo criterio que public.mes_actual(): el mes en curso en hora de España.
+  const mesHoy =
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit" })
+      .format(new Date()) + "-01"
+  const sumarMes = (mes, n) => {
+    const [y, m] = mes.split("-").map(Number)
+    const t = y * 12 + (m - 1) + n
+    return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}-01`
+  }
+  const saldoAntes = await saldo(huchaId)
+  const { data: ahorro, error: errAhorro } = await supabase
+    .from("partidas")
+    .insert({ tipo: "ahorro", concepto: "__prueba_ahorro__", importe: 25, mes_inicio: mesHoy, hucha_id: huchaId })
+    .select()
+    .single()
+  ok(!errAhorro && ahorro, "se crea una partida de ahorro vinculada a la hucha", errAhorro?.message)
+  if (!ahorro) throw new Error("Sin partida no se puede seguir. ¿Has ejecutado 0005 y 0006?")
+
+  const marca = await supabase.from("pagos_partida").insert({ partida_id: ahorro.id, mes: mesHoy }).select().single()
+  ok(!marca.error && marca.data?.movimiento_id, "marcar el mes crea el ingreso en la hucha", marca.error?.message)
+  s = await saldo(huchaId)
+  ok(s === saldoAntes + 25, `el saldo sube de ${saldoAntes} a ${saldoAntes + 25}`, `saldo ${s}`)
+
+  const doble = await supabase.from("pagos_partida").insert({ partida_id: ahorro.id, mes: mesHoy })
+  ok(doble.error?.code === "23505", "marcar dos veces el mismo mes se rechaza", doble.error?.code ?? "se aceptó")
+  s = await saldo(huchaId)
+  ok(s === saldoAntes + 25, "y el intento repetido no deja un ingreso de más", `saldo ${s}`)
+
+  if (marca.data) await supabase.from("pagos_partida").delete().eq("id", marca.data.id)
+  s = await saldo(huchaId)
+  ok(s === saldoAntes, "desmarcar deshace el ingreso", `saldo ${s}`)
+  const { data: movSuelto } = await supabase
+    .from("movimientos").select("id").eq("id", marca.data?.movimiento_id ?? "").maybeSingle()
+  ok(movSuelto === null, "el movimiento de la aportación ya no existe")
+
+  const futuro = await supabase.from("pagos_partida").insert({ partida_id: ahorro.id, mes: sumarMes(mesHoy, 1) })
+  ok(Boolean(futuro.error), "no se puede marcar un mes que no ha llegado", "se aceptó")
+
+  await supabase.from("pagos_partida").insert({ partida_id: ahorro.id, mes: mesHoy })
+  await supabase.from("partidas").delete().eq("id", ahorro.id)
+  s = await saldo(huchaId)
+  ok(s === saldoAntes, "borrar una partida con el mes marcado deshace su aportación", `saldo ${s}`)
+
+  console.log("9) Presupuesto: reglas de las partidas")
+  const gastoConHucha = await supabase
+    .from("partidas")
+    .insert({ tipo: "gasto", concepto: "__prueba_gasto__", importe: 10, mes_inicio: mesHoy, hucha_id: huchaId })
+  ok(gastoConHucha.error?.code === "23514", "un gasto no puede tener hucha", gastoConHucha.error?.code ?? "se aceptó")
+  const ahorroAjeno = await supabase.from("partidas").insert({
+    tipo: "ahorro", concepto: "__prueba_ajena__", importe: 10, mes_inicio: mesHoy,
+    hucha_id: "00000000-0000-0000-0000-000000000000",
+  })
+  ok(Boolean(ahorroAjeno.error), "no se puede vincular una hucha que no es tuya", "se aceptó")
+
+  const { data: internet } = await supabase
+    .from("partidas")
+    .insert({ tipo: "gasto", concepto: "__prueba_internet__", importe: 72, mes_inicio: sumarMes(mesHoy, -2) })
+    .select()
+    .single()
+  if (!internet) throw new Error("No se pudo crear la partida de prueba de Internet.")
+  const cambio = await supabase.rpc("cambiar_importe_partida", {
+    p_partida: internet.id, p_desde: mesHoy, p_importe: 34,
+  })
+  ok(!cambio.error && cambio.data && cambio.data !== internet.id, "cambiar el importe desde este mes crea un tramo nuevo", cambio.error?.message)
+  const { data: tramos } = await supabase
+    .from("partidas").select("importe, mes_inicio, mes_fin").eq("concepto", "__prueba_internet__").order("mes_inicio")
+  const esperado = [[72, sumarMes(mesHoy, -2), sumarMes(mesHoy, -1)], [34, mesHoy, null]]
+  const real = (tramos ?? []).map((t) => [Number(t.importe), t.mes_inicio, t.mes_fin])
+  ok(JSON.stringify(real) === JSON.stringify(esperado), "72 € hasta el mes pasado y 34 € desde este mes", JSON.stringify(real))
+
+  console.log("10) Borrar la hucha borra sus movimientos (cascada)")
   const del = await supabase.from("huchas").delete().eq("id", huchaId).select("id")
   ok(!del.error && del.data?.length === 1, "se borra la hucha", del.error?.message)
   const quedan = await contarMovimientos(huchaId)
@@ -157,6 +228,9 @@ try {
   fallos++
   console.error(`  ERROR  ${e.message}`)
 } finally {
+  // Por concepto: limpia también restos de una ejecución anterior que se cortara.
+  // Los "_" van escapados porque en LIKE significan "cualquier carácter".
+  await supabase.from("partidas").delete().like("concepto", "\\_\\_prueba%")
   if (huchaId) {
     await supabase.from("huchas").delete().eq("id", huchaId)
     console.log("\n  (limpieza: hucha de prueba borrada)")

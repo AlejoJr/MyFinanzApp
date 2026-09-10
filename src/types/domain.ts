@@ -4,8 +4,11 @@ export type TipoHucha = (typeof TIPOS_HUCHA)[number]
 export const TIPOS_MOVIMIENTO = ["ingreso", "retirada"] as const
 export type TipoMovimiento = (typeof TIPOS_MOVIMIENTO)[number]
 
-export const PERIODICIDADES = ["mensual", "anual", "otro"] as const
-export type Periodicidad = (typeof PERIODICIDADES)[number]
+export const TIPOS_PARTIDA = ["ingreso", "gasto", "ahorro"] as const
+export type TipoPartida = (typeof TIPOS_PARTIDA)[number]
+
+export const FRECUENCIAS = ["mensual", "anual", "puntual"] as const
+export type Frecuencia = (typeof FRECUENCIAS)[number]
 
 export const ETIQUETA_TIPO_HUCHA: Record<TipoHucha, string> = {
   ahorro: "Ahorro",
@@ -15,10 +18,23 @@ export const ETIQUETA_TIPO_HUCHA: Record<TipoHucha, string> = {
   otro: "Otro",
 }
 
-export const ETIQUETA_PERIODICIDAD: Record<Periodicidad, string> = {
-  mensual: "Mensual",
-  anual: "Anual",
-  otro: "Otro",
+export const ETIQUETA_TIPO_PARTIDA: Record<TipoPartida, string> = {
+  ingreso: "Ingreso",
+  gasto: "Gasto",
+  ahorro: "Ahorro",
+}
+
+/** Plural para los encabezados de cada bloque. */
+export const TITULO_TIPO_PARTIDA: Record<TipoPartida, string> = {
+  ingreso: "Ingresos",
+  gasto: "Gastos",
+  ahorro: "Ahorro",
+}
+
+export const ETIQUETA_FRECUENCIA: Record<Frecuencia, string> = {
+  mensual: "Cada mes",
+  anual: "Una vez al año",
+  puntual: "Solo un mes",
 }
 
 export interface Hucha {
@@ -41,12 +57,32 @@ export interface Movimiento {
   nota: string | null
 }
 
-export interface GastoFijo {
+/**
+ * Linea del presupuesto (sueldo, alquiler, colchon financiero...).
+ * Los meses van como "YYYY-MM-01", igual que en Postgres.
+ */
+export interface Partida {
   id: string
   usuario_id: string
+  tipo: TipoPartida
   concepto: string
   importe: number
-  periodicidad: Periodicidad
+  frecuencia: Frecuencia
+  mes_inicio: string
+  mes_fin: string | null
+  /** Solo en ahorro: al marcar el mes, el importe entra en esta hucha. */
+  hucha_id: string | null
+  created_at: string
+}
+
+/** Un mes marcado como hecho (el verde del Excel). */
+export interface PagoPartida {
+  id: string
+  usuario_id: string
+  partida_id: string
+  mes: string
+  /** Ingreso creado en la hucha, si la partida es de ahorro con hucha. */
+  movimiento_id: string | null
   created_at: string
 }
 
@@ -54,16 +90,4 @@ export interface GastoFijo {
 export function progresoHucha(hucha: Pick<Hucha, "saldo_actual" | "objetivo">): number {
   if (!hucha.objetivo || hucha.objetivo <= 0) return 0
   return Math.min(100, Math.max(0, (hucha.saldo_actual * 100) / hucha.objetivo))
-}
-
-/** Coste mensual equivalente de un gasto fijo. */
-export function costeMensual(gasto: Pick<GastoFijo, "importe" | "periodicidad">): number {
-  switch (gasto.periodicidad) {
-    case "mensual":
-      return gasto.importe
-    case "anual":
-      return gasto.importe / 12
-    default:
-      return 0
-  }
 }
