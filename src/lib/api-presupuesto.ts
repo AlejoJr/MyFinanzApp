@@ -19,6 +19,8 @@ export interface DatosPartida {
   hucha_id: string | null
   /** Detalle opcional (aseguradora, nº de póliza, qué cubre...). Omitido = sin descripción. */
   descripcion?: string | null
+  /** Clasificación del gasto (Seguros, Vivienda...). Omitido = sin categoría. */
+  categoria_id?: string | null
 }
 
 // Las mismas reglas que las CHECK de 0005 y 0010: así el error no llega a
@@ -29,6 +31,7 @@ const normalizar = (d: DatosPartida) => ({
   mes_fin: d.frecuencia === "puntual" ? null : d.mes_fin,
   hucha_id: d.tipo === "ahorro" ? d.hucha_id : null,
   descripcion: d.descripcion?.trim() || null,
+  categoria_id: d.tipo === "gasto" ? (d.categoria_id ?? null) : null,
 })
 
 export async function listarPartidas(): Promise<Partida[]> {

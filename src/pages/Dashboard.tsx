@@ -5,12 +5,17 @@ import { HuchaCard } from "@/components/huchas/HuchaCard"
 import { HuchaFormDialog } from "@/components/huchas/HuchaFormDialog"
 import { PALETA_GRAFICOS } from "@/components/huchas/estilos"
 import { Cargando } from "@/components/layout/Cargando"
+import { PuntoColor } from "@/components/etiquetas/PuntoColor"
+import { PUNTO_COLOR } from "@/components/etiquetas/colores"
 import { ResumenMesCard } from "@/components/presupuesto/ResumenMesCard"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { useHuchas } from "@/hooks/useHuchas"
+import { useBancos } from "@/hooks/useEtiquetas"
+import { saldoPorBanco } from "@/lib/bancos"
 import { formatEuro, formatPorcentaje } from "@/lib/format"
-import type { Hucha } from "@/types/domain"
+import { cn } from "@/lib/utils"
+import type { Banco, Hucha } from "@/types/domain"
 
 const sumar = (valores: number[]) => valores.reduce((acc, v) => acc + Math.round(v * 100), 0) / 100
 
@@ -45,8 +50,11 @@ function calcularResumen(huchas: Hucha[]) {
 
 export default function Dashboard() {
   const { datos: huchas, cargando, error, recargar } = useHuchas()
+  const bancos = useBancos()
+  const listaBancos = bancos.datos ?? []
   const [creando, setCreando] = useState(false)
   const resumen = useMemo(() => calcularResumen(huchas ?? []), [huchas])
+  const porBanco = useMemo(() => saldoPorBanco(huchas ?? []), [huchas])
 
   if (!huchas && cargando) {
     return <Cargando className="min-h-[40vh]" texto="Cargando tus huchas…" />
@@ -149,31 +157,35 @@ export default function Dashboard() {
           </div>
 
           {resumen.deAhorro.length > 0 && (
-            <SeccionHuchas id="titulo-ahorro" titulo="Tus huchas" huchas={resumen.deAhorro} />
+            <SeccionHuchas id="titulo-ahorro" titulo="Tus huchas" huchas={resumen.deAhorro} bancos={listaBancos} />
           )}
           {resumen.paraPagar.length > 0 && (
-            <SeccionHuchas id="titulo-pagar" titulo="Para pagar" huchas={resumen.paraPagar} />
+            <SeccionHuchas id="titulo-pagar" titulo="Para pagar" huchas={resumen.paraPagar} bancos={listaBancos} />
           )}
 
-          {resumen.distribucion.length > 1 && (
-            <Card className="lg:max-w-xl">
-              <Title>Distribución de tu ahorro</Title>
-              <DonutChart
-                className="mt-4 h-48"
-                data={resumen.distribucion}
-                category="saldo"
-                index="nombre"
-                colors={colores}
-                valueFormatter={formatEuro}
-                showAnimation={false}
-              />
-              <Legend
-                className="mt-4"
-                categories={resumen.distribucion.map((d) => d.nombre)}
-                colors={colores}
-              />
-            </Card>
-          )}
+          <div className="grid gap-6 lg:grid-cols-2">
+            {resumen.distribucion.length > 1 && (
+              <Card>
+                <Title>Distribución de tu ahorro</Title>
+                <DonutChart
+                  className="mt-4 h-48"
+                  data={resumen.distribucion}
+                  category="saldo"
+                  index="nombre"
+                  colors={colores}
+                  valueFormatter={formatEuro}
+                  showAnimation={false}
+                />
+                <Legend
+                  className="mt-4"
+                  categories={resumen.distribucion.map((d) => d.nombre)}
+                  colors={colores}
+                />
+              </Card>
+            )}
+
+            <PorBancoCard porBanco={porBanco} bancos={listaBancos} />
+          </div>
 
           {resumen.pagadas.length > 0 && (
             <details className="group rounded-lg border bg-background">
@@ -193,13 +205,24 @@ export default function Dashboard() {
       <HuchaFormDialog
         open={creando}
         onOpenChange={setCreando}
+        bancos={listaBancos}
         onGuardada={() => void recargar()}
       />
     </div>
   )
 }
 
-function SeccionHuchas({ id, titulo, huchas }: { id: string; titulo: string; huchas: Hucha[] }) {
+function SeccionHuchas({
+  id,
+  titulo,
+  huchas,
+  bancos,
+}: {
+  id: string
+  titulo: string
+  huchas: Hucha[]
+  bancos: Banco[]
+}) {
   return (
     <section className="space-y-3" aria-labelledby={id}>
       <h3 id={id} className="text-base font-semibold">
@@ -207,9 +230,51 @@ function SeccionHuchas({ id, titulo, huchas }: { id: string; titulo: string; huc
       </h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {huchas.map((h) => (
-          <HuchaCard key={h.id} hucha={h} />
+          <HuchaCard key={h.id} hucha={h} banco={bancos.find((b) => b.id === h.banco_id)} />
         ))}
       </div>
     </section>
+  )
+}
+
+/** Dónde está guardado cada euro: saldo activo agrupado por banco. */
+function PorBancoCard({
+  porBanco,
+  bancos,
+}: {
+  porBanco: ReturnType<typeof saldoPorBanco>
+  bancos: Banco[]
+}) {
+  if (porBanco.every((b) => b.bancoId === null)) return null
+
+  const total = porBanco.reduce((acc, b) => acc + b.total, 0)
+
+  return (
+    <Card>
+      <Title>Por banco</Title>
+      <div className="mt-4 space-y-2.5">
+        {porBanco.map((b) => {
+          const banco = bancos.find((x) => x.id === b.bancoId)
+          const pct = total > 0 ? (b.total * 100) / total : 0
+          return (
+            <div key={b.bancoId ?? "sin-banco"} className="space-y-1">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <PuntoColor color={banco?.color ?? "gray"} />
+                  <span className="truncate">{banco?.nombre ?? "Sin banco"}</span>
+                </span>
+                <span className="shrink-0 tabular-nums text-tremor-content-strong">{formatEuro(b.total)}</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                <div
+                  className={cn("h-full rounded-full", banco ? PUNTO_COLOR[banco.color] : "bg-gray-400")}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Card>
   )
 }

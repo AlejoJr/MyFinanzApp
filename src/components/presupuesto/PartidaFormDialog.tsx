@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react"
+import { Link } from "react-router-dom"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { PuntoColor } from "@/components/etiquetas/PuntoColor"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,6 +32,7 @@ import {
   ETIQUETA_TIPO_PARTIDA,
   FRECUENCIAS,
   TIPOS_PARTIDA,
+  type Categoria,
   type Frecuencia,
   type Hucha,
   type Partida,
@@ -38,6 +41,7 @@ import {
 import { CampoMes } from "./CampoMes"
 
 const SIN_HUCHA = "ninguna" // Radix Select no admite "" como valor
+const SIN_CATEGORIA = "ninguna"
 const MAX_DESCRIPCION = 500
 
 const COLOR_TIPO: Record<TipoPartida, string> = {
@@ -52,6 +56,7 @@ interface Props {
   /** Si se pasa, se edita; si no, se crea una partida nueva. */
   partida?: Partida
   huchas: Hucha[]
+  categorias: Categoria[]
   mesPorDefecto: Mes
   tipoPorDefecto?: TipoPartida
   onGuardada: () => void
@@ -62,6 +67,7 @@ export function PartidaFormDialog({
   onOpenChange,
   partida,
   huchas,
+  categorias,
   mesPorDefecto,
   tipoPorDefecto = "gasto",
   onGuardada,
@@ -76,6 +82,7 @@ export function PartidaFormDialog({
   const [conFin, setConFin] = useState(false)
   const [fin, setFin] = useState<Mes>(mesPorDefecto)
   const [huchaId, setHuchaId] = useState<string>(SIN_HUCHA)
+  const [categoriaId, setCategoriaId] = useState<string>(SIN_CATEGORIA)
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
@@ -91,6 +98,7 @@ export function PartidaFormDialog({
     setConFin(Boolean(partida?.mes_fin))
     setFin(partida?.mes_fin ?? sumarMeses(partida?.mes_inicio ?? mesPorDefecto, 2))
     setHuchaId(partida?.hucha_id ?? SIN_HUCHA)
+    setCategoriaId(partida?.categoria_id ?? SIN_CATEGORIA)
     setError(null)
   }, [open, partida, mesPorDefecto, tipoPorDefecto])
 
@@ -121,6 +129,7 @@ export function PartidaFormDialog({
         mes_inicio: inicio,
         mes_fin: usaFin ? fin : null,
         hucha_id: tipo === "ahorro" && huchaId !== SIN_HUCHA ? huchaId : null,
+        categoria_id: tipo === "gasto" && categoriaId !== SIN_CATEGORIA ? categoriaId : null,
       }
       if (partida) {
         await actualizarPartida(partida.id, datos)
@@ -262,6 +271,37 @@ export function PartidaFormDialog({
               ) : (
                 <p className="text-xs text-muted-foreground">
                   Sin fecha de fin. Márcalo para plazos, p. ej. una tablet de enero a marzo.
+                </p>
+              )}
+            </div>
+          )}
+
+          {tipo === "gasto" && (
+            <div className="space-y-2">
+              <Label htmlFor="partida-categoria">Categoría (opcional)</Label>
+              <Select value={categoriaId} onValueChange={setCategoriaId} disabled={guardando}>
+                <SelectTrigger id="partida-categoria">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SIN_CATEGORIA}>Ninguna</SelectItem>
+                  {categorias.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <span className="flex items-center gap-2">
+                        <PuntoColor color={c.color} />
+                        {c.nombre}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {categorias.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Aún no tienes categorías.{" "}
+                  <Link to="/ajustes" className="font-medium underline">
+                    Créalas en Ajustes
+                  </Link>{" "}
+                  para agrupar tus gastos.
                 </p>
               )}
             </div>

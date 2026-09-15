@@ -4,6 +4,7 @@ import { Card, Metric, ProgressBar, Text } from "@tremor/react"
 import { AlertCircle, ArrowLeft, Banknote, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { ConfirmarDialog } from "@/components/ConfirmarDialog"
+import { EtiquetaBadge } from "@/components/etiquetas/EtiquetaBadge"
 import { HuchaFormDialog } from "@/components/huchas/HuchaFormDialog"
 import { ESTILO_TIPO } from "@/components/huchas/estilos"
 import { Cargando } from "@/components/layout/Cargando"
@@ -13,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useHucha, useMovimientos } from "@/hooks/useHuchas"
+import { useBancos } from "@/hooks/useEtiquetas"
 import { usePresupuesto } from "@/hooks/usePresupuesto"
 import { eliminarHucha, eliminarMovimiento, pagarHucha } from "@/lib/api"
 import { crearPartida } from "@/lib/api-presupuesto"
@@ -47,6 +49,8 @@ function Detalle({ id }: { id: string }) {
   const mesHoy = mesActual()
   const hucha = useHucha(id)
   const movimientos = useMovimientos(id)
+  const bancos = useBancos()
+  const listaBancos = bancos.datos ?? []
   // Para saber cuánto aporta el presupuesto cada mes a esta hucha.
   const presupuesto = usePresupuesto(anioDe(mesHoy))
   const [editando, setEditando] = useState(false)
@@ -90,6 +94,7 @@ function Detalle({ id }: { id: string }) {
   const sinObjetivo = h.objetivo <= 0
   const falta = Math.max(0, h.objetivo - h.saldo_actual)
   const numMovs = movimientos.datos?.length ?? 0
+  const banco = listaBancos.find((b) => b.id === h.banco_id)
 
   const aportacion = presupuesto.datos
     ? aportacionDe(h.id, presupuesto.datos.partidas, presupuesto.datos.pagos, mesHoy)
@@ -158,6 +163,7 @@ function Detalle({ id }: { id: string }) {
                   Pagada el {formatFecha(h.pagada_at!)}
                 </Badge>
               )}
+              {banco && !pagada && <EtiquetaBadge nombre={banco.nombre} color={banco.color} />}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -275,6 +281,7 @@ function Detalle({ id }: { id: string }) {
         open={editando}
         onOpenChange={setEditando}
         hucha={h}
+        bancos={listaBancos}
         onGuardada={() => void hucha.recargar()}
       />
 

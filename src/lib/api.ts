@@ -39,6 +39,8 @@ export interface DatosHucha {
   objetivo: number
   /** Último mes para reunir el objetivo ("YYYY-MM-01"). Obligatorio en "pago", opcional en "ahorro". */
   fecha_limite: string | null
+  /** Dónde está guardado el dinero. Omitido = sin banco. */
+  banco_id?: string | null
 }
 
 const normalizarHucha = (d: DatosHucha) => ({ ...d, nombre: d.nombre.trim() })

@@ -11,6 +11,7 @@ import { VistaMes } from "@/components/presupuesto/VistaMes"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { useHuchas } from "@/hooks/useHuchas"
+import { useCategorias } from "@/hooks/useEtiquetas"
 import { usePresupuesto } from "@/hooks/usePresupuesto"
 import { desmarcar, eliminarPartida, marcarHecho } from "@/lib/api-presupuesto"
 import { formatEuro } from "@/lib/format"
@@ -35,6 +36,8 @@ export default function Presupuesto() {
   const presupuesto = usePresupuesto(anio)
   const huchas = useHuchas()
   const listaHuchas = huchas.datos ?? []
+  const categorias = useCategorias()
+  const listaCategorias = categorias.datos ?? []
   // Las aportaciones a huchas "Para pagar" van en su propio bloque.
   const huchasPago = useMemo(() => huchasParaPagar(huchas.datos ?? []), [huchas.datos])
 
@@ -138,6 +141,7 @@ export default function Presupuesto() {
       <VistaMes
         resumen={resumen}
         huchas={listaHuchas}
+        categorias={listaCategorias}
         puedeMarcar={mes <= mesActual()}
         marcandoId={marcandoId}
         onMarcar={(linea) => void alternar(linea)}
@@ -216,6 +220,7 @@ export default function Presupuesto() {
         onOpenChange={(abierto) => setForm((f) => ({ ...f, abierto }))}
         partida={form.partida}
         huchas={listaHuchas}
+        categorias={listaCategorias}
         mesPorDefecto={mes}
         tipoPorDefecto={form.tipo}
         onGuardada={() => void presupuesto.recargar()}

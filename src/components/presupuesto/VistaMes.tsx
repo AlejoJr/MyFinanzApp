@@ -1,5 +1,7 @@
 import { Card, Metric, ProgressBar, Text } from "@tremor/react"
 import { Check, Loader2, MoreHorizontal, Pencil, Plus, Trash2, TrendingUp } from "lucide-react"
+import { PuntoColor } from "@/components/etiquetas/PuntoColor"
+import { PUNTO_COLOR } from "@/components/etiquetas/colores"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -9,9 +11,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { formatEuro } from "@/lib/format"
-import { cuota, GRUPOS, TITULO_GRUPO, type Grupo, type LineaMes, type ResumenMes } from "@/lib/presupuesto"
+import {
+  cuota,
+  gastosPorCategoria,
+  GRUPOS,
+  TITULO_GRUPO,
+  type Grupo,
+  type LineaMes,
+  type Mes,
+  type ResumenMes,
+} from "@/lib/presupuesto"
 import { cn } from "@/lib/utils"
-import type { Hucha, Partida, TipoPartida } from "@/types/domain"
+import type { Categoria, Hucha, Partida, TipoPartida } from "@/types/domain"
 
 const ANADIR: Record<Grupo, { tipo: TipoPartida; texto: string }> = {
   ingreso: { tipo: "ingreso", texto: "Añadir ingreso" },
@@ -30,6 +41,7 @@ interface Acciones {
 interface Props extends Acciones {
   resumen: ResumenMes
   huchas: Hucha[]
+  categorias: Categoria[]
   /** false en meses futuros: no se puede marcar lo que aún no ha pasado. */
   puedeMarcar: boolean
   /** Partida cuya marca se está guardando. */
@@ -38,7 +50,16 @@ interface Props extends Acciones {
   onAnadir: (tipo: TipoPartida) => void
 }
 
-export function VistaMes({ resumen, huchas, puedeMarcar, marcandoId, onMarcar, onAnadir, ...acciones }: Props) {
+export function VistaMes({
+  resumen,
+  huchas,
+  categorias,
+  puedeMarcar,
+  marcandoId,
+  onMarcar,
+  onAnadir,
+  ...acciones
+}: Props) {
   const subtotal: Record<Grupo, number> = {
     ingreso: resumen.ingresos,
     gasto: resumen.gastos,
@@ -84,6 +105,8 @@ export function VistaMes({ resumen, huchas, puedeMarcar, marcandoId, onMarcar, o
         )
       )}
 
+      <GastosPorCategoria lineasGasto={resumen.lineas.gasto} mes={resumen.mes} categorias={categorias} />
+
       {grupos.map((grupo) => {
         const lineas = resumen.lineas[grupo]
         return (
@@ -120,6 +143,7 @@ export function VistaMes({ resumen, huchas, puedeMarcar, marcandoId, onMarcar, o
                     linea={linea}
                     mes={resumen.mes}
                     hucha={huchas.find((h) => h.id === linea.partida.hucha_id)}
+                    categoria={categorias.find((c) => c.id === linea.partida.categoria_id)}
                     puedeMarcar={puedeMarcar}
                     marcando={marcandoId === linea.partida.id}
                     onMarcar={onMarcar}
@@ -132,6 +156,55 @@ export function VistaMes({ resumen, huchas, puedeMarcar, marcandoId, onMarcar, o
         )
       })}
     </div>
+  )
+}
+
+/** En qué se va el dinero: gastos del mes agrupados por categoría. */
+function GastosPorCategoria({
+  lineasGasto,
+  mes,
+  categorias,
+}: {
+  lineasGasto: LineaMes[]
+  mes: Mes
+  categorias: Categoria[]
+}) {
+  const totales = gastosPorCategoria(
+    lineasGasto.map((l) => l.partida),
+    mes,
+  )
+  // Sin categorías asignadas, la tarjeta no aporta nada que no diga ya el total de Gastos.
+  if (totales.length === 0 || totales.every((t) => t.categoriaId === null)) return null
+
+  const total = totales.reduce((acc, t) => acc + t.total, 0)
+
+  return (
+    <Card className="p-4">
+      <p className="mb-3 text-sm font-medium">Gastos por categoría</p>
+      <div className="space-y-2.5">
+        {totales.map((t) => {
+          const cat = categorias.find((c) => c.id === t.categoriaId)
+          const pct = total > 0 ? (t.total * 100) / total : 0
+          return (
+            <div key={t.categoriaId ?? "sin-categoria"} className="space-y-1">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <PuntoColor color={cat?.color ?? "gray"} />
+                  <span className="truncate">{cat?.nombre ?? "Sin categorizar"}</span>
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">{formatEuro(t.total)}</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                <div
+                  className={cn("h-full rounded-full", cat ? PUNTO_COLOR[cat.color] : "bg-gray-400")}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Card>
   )
 }
 
@@ -160,6 +233,7 @@ function FilaLinea({
   linea,
   mes,
   hucha,
+  categoria,
   puedeMarcar,
   marcando,
   onMarcar,
@@ -170,6 +244,7 @@ function FilaLinea({
   linea: LineaMes
   mes: string
   hucha: Hucha | undefined
+  categoria: Categoria | undefined
   puedeMarcar: boolean
   marcando: boolean
   onMarcar: (linea: LineaMes) => void
@@ -214,7 +289,10 @@ function FilaLinea({
         onClick={() => onEditar(partida)}
         className="min-w-0 flex-1 text-left focus-visible:underline focus-visible:outline-none"
       >
-        <p className="truncate text-sm font-medium">{partida.concepto}</p>
+        <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+          {categoria && <PuntoColor color={categoria.color} />}
+          <span className="truncate">{partida.concepto}</span>
+        </p>
         {detalles.length > 0 && (
           <p className="truncate text-xs text-muted-foreground">{detalles.join(" · ")}</p>
         )}

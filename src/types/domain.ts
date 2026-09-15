@@ -45,6 +45,28 @@ export const ETIQUETA_FRECUENCIA: Record<Frecuencia, string> = {
   puntual: "Solo un mes",
 }
 
+/**
+ * Colores para categorías y bancos. El mismo conjunto que color_etiqueta en
+ * Postgres (0011) y que TREMOR_PALETTE en tailwind.config.js: son los
+ * únicos que Tailwind no purga, así que cualquiera de estos sale siempre
+ * coloreado.
+ */
+export const COLORES_ETIQUETA = [
+  "slate", "gray", "emerald", "blue", "amber", "rose", "violet", "cyan",
+] as const
+export type ColorEtiqueta = (typeof COLORES_ETIQUETA)[number]
+
+export const NOMBRE_COLOR: Record<ColorEtiqueta, string> = {
+  slate: "Pizarra",
+  gray: "Gris",
+  emerald: "Esmeralda",
+  blue: "Azul",
+  amber: "Ámbar",
+  rose: "Rosa",
+  violet: "Violeta",
+  cyan: "Cian",
+}
+
 export interface Hucha {
   id: string
   usuario_id: string
@@ -64,6 +86,8 @@ export interface Hucha {
   fecha_limite: string | null
   /** Solo "pago": null mientras está activa; fecha en que se pagó. */
   pagada_at: string | null
+  /** Dónde está guardado el dinero (BBVA, Trade Republic...). Opcional. */
+  banco_id: string | null
   created_at: string
 }
 
@@ -94,6 +118,8 @@ export interface Partida {
   hucha_id: string | null
   /** Detalle opcional (hasta 500 caracteres): aseguradora, nº de póliza, qué cubre... */
   descripcion: string | null
+  /** Clasificación del gasto (Seguros, Vivienda...). Opcional. */
+  categoria_id: string | null
   created_at: string
 }
 
@@ -105,6 +131,24 @@ export interface PagoPartida {
   mes: string
   /** Ingreso creado en la hucha, si la partida es de ahorro con hucha. */
   movimiento_id: string | null
+  created_at: string
+}
+
+/** Clasifica un gasto del presupuesto: "¿en qué se me va el dinero?" */
+export interface Categoria {
+  id: string
+  usuario_id: string
+  nombre: string
+  color: ColorEtiqueta
+  created_at: string
+}
+
+/** Dónde está guardado el dinero de una hucha: "¿dónde tengo cada euro?" */
+export interface Banco {
+  id: string
+  usuario_id: string
+  nombre: string
+  color: ColorEtiqueta
   created_at: string
 }
 

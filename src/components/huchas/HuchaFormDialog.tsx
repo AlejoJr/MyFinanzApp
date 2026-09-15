@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react"
+import { Link } from "react-router-dom"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { CampoMes } from "@/components/presupuesto/CampoMes"
+import { PuntoColor } from "@/components/etiquetas/PuntoColor"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,11 +33,14 @@ import { cn } from "@/lib/utils"
 import {
   ETIQUETA_TIPO_HUCHA,
   TIPOS_HUCHA,
+  type Banco,
   type FinalidadHucha,
   type Hucha,
   type TipoHucha,
 } from "@/types/domain"
 import { ESTILO_TIPO } from "./estilos"
+
+const SIN_BANCO = "ninguno"
 
 const OPCIONES_FINALIDAD: { valor: FinalidadHucha; titulo: string; detalle: string; activo: string }[] = [
   {
@@ -57,6 +62,7 @@ interface Props {
   onOpenChange: (open: boolean) => void
   /** Si se pasa, el diálogo edita esa hucha; si no, crea una nueva. */
   hucha?: Hucha
+  bancos: Banco[]
   onGuardada: () => void
 }
 
@@ -69,11 +75,12 @@ function calcularAporte(objetivo: number | null, saldoInicial: number | null, li
   return { meses, cuota: cuotaMensual(falta, meses) }
 }
 
-export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props) {
+export function HuchaFormDialog({ open, onOpenChange, hucha, bancos, onGuardada }: Props) {
   const editando = Boolean(hucha)
   const [nombre, setNombre] = useState("")
   const [tipo, setTipo] = useState<TipoHucha>("ahorro")
   const [finalidad, setFinalidad] = useState<FinalidadHucha>("ahorro")
+  const [bancoId, setBancoId] = useState<string>(SIN_BANCO)
   const [objetivo, setObjetivo] = useState("")
   const [saldoInicial, setSaldoInicial] = useState("")
   // En "Para pagar" la fecha es obligatoria; en "Ahorro", opcional.
@@ -89,6 +96,7 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
     setNombre(hucha?.nombre ?? "")
     setTipo(hucha?.tipo ?? "ahorro")
     setFinalidad(hucha?.finalidad ?? "ahorro")
+    setBancoId(hucha?.banco_id ?? SIN_BANCO)
     setObjetivo(hucha && hucha.objetivo > 0 ? importeATexto(hucha.objetivo) : "")
     setSaldoInicial("")
     setConFecha(Boolean(hucha?.fecha_limite))
@@ -136,6 +144,7 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
         finalidad,
         objetivo: objetivoNum,
         fecha_limite: usaFecha ? limite : null,
+        banco_id: bancoId !== SIN_BANCO ? bancoId : null,
       }
 
       if (hucha) {
@@ -276,6 +285,35 @@ export function HuchaFormDialog({ open, onOpenChange, hucha, onGuardada }: Props
                 })}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="hucha-banco">Banco (opcional)</Label>
+            <Select value={bancoId} onValueChange={setBancoId} disabled={guardando}>
+              <SelectTrigger id="hucha-banco">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SIN_BANCO}>Ninguno</SelectItem>
+                {bancos.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    <span className="flex items-center gap-2">
+                      <PuntoColor color={b.color} />
+                      {b.nombre}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {bancos.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Aún no tienes bancos.{" "}
+                <Link to="/ajustes" className="font-medium underline">
+                  Créalos en Ajustes
+                </Link>{" "}
+                para saber dónde tienes cada euro.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

@@ -1,15 +1,16 @@
 -- =====================================================================
 -- MyFinanzApp · Verificacion post-migracion
--- Ejecutar en el SQL Editor tras aplicar 0001 a 0010.
+-- Ejecutar en el SQL Editor tras aplicar 0001 a 0011.
 --
 -- El editor de Supabase solo muestra el resultado de la ULTIMA consulta,
 -- asi que las comprobaciones van unidas en una sola tabla. Deben salir
--- 27 filas y todas deben empezar por OK.
+-- 35 filas y todas deben empezar por OK.
 -- =====================================================================
 
 with
 tablas(nombre) as (
-  values ('huchas'), ('movimientos'), ('partidas'), ('pagos_partida')
+  values ('huchas'), ('movimientos'), ('partidas'), ('pagos_partida'),
+         ('categorias'), ('bancos')
 ),
 -- 1) RLS activada y forzada
 rls as (
@@ -47,11 +48,11 @@ sin_anon as (
     and tablename in (select nombre from tablas)
     and 'anon' = any (roles)
 ),
--- 4) Triggers: 4 de huchas/movimientos, 4 del presupuesto, 1 de 0007
+-- 4) Triggers: 4 de huchas/movimientos, 4 del presupuesto, 2 de 0007/0011
 triggers as (
   select
-    format('%s %s triggers creados (esperados 9)',
-           case when count(*) = 9 then 'OK' else 'FALLO' end, count(*)) as resultado,
+    format('%s %s triggers creados (esperados 10)',
+           case when count(*) = 10 then 'OK' else 'FALLO' end, count(*)) as resultado,
     4 as orden, '' as sub
   from pg_trigger t
   join pg_class c on c.oid = t.tgrelid
@@ -71,23 +72,24 @@ columnas as (
   where table_schema = 'public'
     and (   (table_name = 'movimientos'   and column_name = 'usuario_id')
          or (table_name = 'huchas'        and column_name in ('saldo_actual', 'finalidad',
-                                                              'fecha_limite', 'pagada_at'))
-         or (table_name = 'partidas'      and column_name in ('hucha_id', 'descripcion'))
+                                                              'fecha_limite', 'pagada_at', 'banco_id'))
+         or (table_name = 'partidas'      and column_name in ('hucha_id', 'descripcion', 'categoria_id'))
          or (table_name = 'pagos_partida' and column_name = 'movimiento_id'))
   group by table_name, column_name
 ),
 -- 6) Indices
 indices as (
   select
-    format('%s %s indices propios creados (esperados 7)',
-           case when count(*) = 7 then 'OK' else 'FALLO' end, count(*)) as resultado,
+    format('%s %s indices propios creados (esperados 9)',
+           case when count(*) = 9 then 'OK' else 'FALLO' end, count(*)) as resultado,
     6 as orden, '' as sub
   from pg_indexes
   where schemaname = 'public'
     and indexname in ('huchas_usuario_id_idx', 'movimientos_usuario_id_idx',
                       'movimientos_hucha_fecha_idx', 'partidas_usuario_idx',
                       'partidas_hucha_idx', 'pagos_partida_usuario_mes_idx',
-                      'pagos_partida_movimiento_idx')
+                      'pagos_partida_movimiento_idx', 'partidas_categoria_idx',
+                      'huchas_banco_idx')
 ),
 -- 7) 0004: una hucha no puede quedar en negativo
 restriccion as (
@@ -164,6 +166,31 @@ cron_funcion as (
            then 'FALLO anon no puede ejecutar mantener_activo (el cron de Vercel la necesita sin sesion)'
          else 'OK funcion mantener_activo ejecutable sin sesion (para el cron anti-pausa)' end as resultado,
     13 as orden, '' as sub
+),
+-- 14) 0011: nombre unico de categoria/banco por cuenta (sin distinguir mayusculas)
+etiquetas_unicas as (
+  select
+    case when count(*) = 2
+         then 'OK nombres de categoria y banco unicos por cuenta'
+         else format('FALLO faltan indices unicos de nombre (ejecuta 0011, hay %s de 2)', count(*)) end as resultado,
+    14 as orden, '' as sub
+  from pg_indexes
+  where schemaname = 'public'
+    and indexname in ('categorias_usuario_nombre_idx', 'bancos_usuario_nombre_idx')
+),
+-- 15) 0011: no se puede vincular una categoria o un banco que no sean tuyos
+etiquetas_validadas as (
+  select
+    case when to_regprocedure('public.huchas_validar_banco()') is null
+           then 'FALLO falta la funcion huchas_validar_banco (ejecuta 0011)'
+         when not exists (
+           select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'public' and p.proname = 'partidas_validar'
+              and p.prosrc ilike '%categoria_id%'
+         )
+           then 'FALLO partidas_validar no comprueba categoria_id (ejecuta 0011)'
+         else 'OK no se puede vincular una categoria o un banco que no sean tuyos' end as resultado,
+    15 as orden, '' as sub
 )
 select resultado
 from (
@@ -180,5 +207,7 @@ from (
   union all select * from alta_hucha
   union all select * from objetivo_ahorro
   union all select * from cron_funcion
+  union all select * from etiquetas_unicas
+  union all select * from etiquetas_validadas
 ) t
 order by orden, sub;

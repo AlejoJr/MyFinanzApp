@@ -1,6 +1,6 @@
 import { Suspense, useState } from "react"
 import { Link, NavLink, Outlet } from "react-router-dom"
-import { CalendarRange, LayoutDashboard, LogOut, PiggyBank, TrendingUp } from "lucide-react"
+import { CalendarRange, LayoutDashboard, LogOut, PiggyBank, Settings, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/context/AuthContext"
 import { cn } from "@/lib/utils"
@@ -63,6 +63,13 @@ export function AppShell() {
             <span className="hidden max-w-[14rem] truncate text-sm text-muted-foreground lg:inline">
               {user?.email}
             </span>
+            {/* Fuera de la navegación principal a propósito: es de uso ocasional
+                (categorías, bancos...), no una sección que se visite a diario. */}
+            <Button variant="ghost" size="icon" asChild aria-label="Ajustes">
+              <Link to="/ajustes">
+                <Settings className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
             <Button
               variant="ghost"
               size="sm"

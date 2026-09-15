@@ -14,6 +14,7 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"))
 const HuchaDetalle = lazy(() => import("@/pages/HuchaDetalle"))
 const Presupuesto = lazy(() => import("@/pages/Presupuesto"))
 const Prevision = lazy(() => import("@/pages/Prevision"))
+const Ajustes = lazy(() => import("@/pages/Ajustes"))
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
               <Route path="huchas/:id" element={<HuchaDetalle />} />
               <Route path="presupuesto" element={<Presupuesto />} />
               <Route path="prevision" element={<Prevision />} />
+              <Route path="ajustes" element={<Ajustes />} />
             </Route>
           </Route>
 

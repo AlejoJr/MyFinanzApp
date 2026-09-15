@@ -28,17 +28,22 @@ export function traducirErrorDb(
     }
     if (/importe_check/.test(message)) return "El importe tiene que ser mayor que cero."
     if (/objetivo_check/.test(message)) return "El objetivo no puede ser negativo."
+    if (/(categorias|bancos)_nombre_check/.test(message)) {
+      return "El nombre tiene que tener entre 1 y 40 caracteres."
+    }
     if (/(nombre|concepto)_check/.test(message)) {
       return "El nombre tiene que tener entre 1 y 80 caracteres."
     }
     if (/nota_check/.test(message)) return "La nota no puede superar los 280 caracteres."
+    if (/descripcion_check/.test(message)) return "La descripción no puede superar los 500 caracteres."
     return "Algún dato no cumple las reglas de la base de datos."
   }
 
   if (code === "23505") {
-    return /pagos_partida_unico/.test(message)
-      ? "Ese mes ya estaba marcado como hecho."
-      : "Ese registro ya existe."
+    if (/pagos_partida_unico/.test(message)) return "Ese mes ya estaba marcado como hecho."
+    if (/categorias_usuario_nombre_idx/.test(message)) return "Ya tienes una categoría con ese nombre."
+    if (/bancos_usuario_nombre_idx/.test(message)) return "Ya tienes un banco con ese nombre."
+    return "Ese registro ya existe."
   }
 
   if (code === "42501" || /row-level security/i.test(message)) {

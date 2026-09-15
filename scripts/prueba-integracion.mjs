@@ -336,7 +336,60 @@ try {
     borrarPagada.error?.message,
   )
 
-  console.log("11) Borrar la hucha borra sus movimientos (cascada)")
+  console.log("11) Categorías (partidas) y bancos (huchas) (0011)")
+  const { data: cat, error: errCat } = await supabase
+    .from("categorias").insert({ nombre: "__prueba_cat__", color: "emerald" }).select().single()
+  ok(!errCat && cat, "se crea una categoría", errCat?.message)
+  if (!cat) throw new Error("Sin categoría no se puede seguir. ¿Has ejecutado 0011?")
+
+  const catDuplicada = await supabase.from("categorias").insert({ nombre: "__PRUEBA_CAT__" })
+  ok(catDuplicada.error?.code === "23505", "el mismo nombre repetido (sin distinguir mayúsculas) se rechaza", catDuplicada.error?.code ?? "se aceptó")
+
+  const { data: gastoConCat } = await supabase
+    .from("partidas")
+    .insert({ tipo: "gasto", concepto: "__prueba_gasto_cat__", importe: 15, mes_inicio: mesHoy, categoria_id: cat.id })
+    .select()
+    .single()
+  ok(gastoConCat?.categoria_id === cat.id, "una partida puede vincularse a la categoría")
+
+  const catAjena = await supabase
+    .from("partidas")
+    .insert({ tipo: "gasto", concepto: "__prueba_cat_ajena__", importe: 10, mes_inicio: mesHoy, categoria_id: "00000000-0000-0000-0000-000000000000" })
+  ok(Boolean(catAjena.error), "no se puede vincular una categoría que no es tuya", "se aceptó")
+
+  await supabase.from("categorias").delete().eq("id", cat.id)
+  const { data: gastoTrasBorrar } = await supabase
+    .from("partidas").select("categoria_id").eq("id", gastoConCat.id).single()
+  ok(gastoTrasBorrar?.categoria_id === null, "al borrar la categoría, la partida se queda sin categoría (no se borra)")
+
+  const { data: banco, error: errBanco } = await supabase
+    .from("bancos").insert({ nombre: "__prueba_banco__", color: "blue" }).select().single()
+  ok(!errBanco && banco, "se crea un banco", errBanco?.message)
+  if (!banco) throw new Error("Sin banco no se puede seguir. ¿Has ejecutado 0011?")
+
+  const bancoDuplicado = await supabase.from("bancos").insert({ nombre: "__PRUEBA_BANCO__" })
+  ok(bancoDuplicado.error?.code === "23505", "el mismo nombre de banco repetido se rechaza", bancoDuplicado.error?.code ?? "se aceptó")
+
+  const { data: huchaConBanco } = await supabase
+    .from("huchas")
+    .insert({ nombre: "__prueba_hucha_banco__", tipo: "otro", banco_id: banco.id })
+    .select()
+    .single()
+  ok(huchaConBanco?.banco_id === banco.id, "una hucha puede vincularse al banco")
+
+  const bancoAjeno = await supabase
+    .from("huchas")
+    .insert({ nombre: "__prueba_banco_ajeno__", tipo: "otro", banco_id: "00000000-0000-0000-0000-000000000000" })
+  ok(Boolean(bancoAjeno.error), "no se puede vincular un banco que no es tuyo", "se aceptó")
+
+  await supabase.from("bancos").delete().eq("id", banco.id)
+  const { data: huchaTrasBorrar } = await supabase
+    .from("huchas").select("banco_id").eq("id", huchaConBanco.id).single()
+  ok(huchaTrasBorrar?.banco_id === null, "al borrar el banco, la hucha se queda sin banco (no se borra)")
+
+  await supabase.from("huchas").delete().eq("id", huchaConBanco.id)
+
+  console.log("12) Borrar la hucha borra sus movimientos (cascada)")
   const del = await supabase.from("huchas").delete().eq("id", huchaId).select("id")
   ok(!del.error && del.data?.length === 1, "se borra la hucha", del.error?.message)
   const quedan = await contarMovimientos(huchaId)
@@ -353,6 +406,8 @@ try {
   // la aportación de una hucha pagada lo impediría la propia base de datos.
   await supabase.from("huchas").delete().like("nombre", "\\_\\_prueba%")
   await supabase.from("partidas").delete().like("concepto", "\\_\\_prueba%")
+  await supabase.from("categorias").delete().ilike("nombre", "\\_\\_prueba%")
+  await supabase.from("bancos").delete().ilike("nombre", "\\_\\_prueba%")
   await supabase.auth.signOut()
 }
 

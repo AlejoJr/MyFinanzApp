@@ -219,3 +219,25 @@ export function filasAnio(
 
 export const sumaCelda = (celda: LineaMes[]): number =>
   celda.reduce((acc, l) => acc + aCentimos(l.partida.importe), 0) / 100
+
+export interface TotalCategoria {
+  /** null = sin categoría asignada. */
+  categoriaId: string | null
+  total: number
+}
+
+/**
+ * Suma los gastos de un mes agrupados por categoría (las sin categoría
+ * quedan bajo categoriaId=null, para que la suma de todos los grupos siga
+ * cuadrando con el total de "Gastos" del mes). De mayor a menor importe.
+ */
+export function gastosPorCategoria(partidas: Partida[], mes: Mes): TotalCategoria[] {
+  const centimos = new Map<string | null, number>()
+  for (const p of partidas) {
+    if (p.tipo !== "gasto" || !partidaAplica(p, mes)) continue
+    centimos.set(p.categoria_id, (centimos.get(p.categoria_id) ?? 0) + aCentimos(p.importe))
+  }
+  return [...centimos.entries()]
+    .map(([categoriaId, c]) => ({ categoriaId, total: c / 100 }))
+    .sort((a, b) => b.total - a.total)
+}

@@ -10,6 +10,7 @@
  * error: se descarta el valor.
  */
 import type {
+  ColorEtiqueta,
   FinalidadHucha,
   Frecuencia,
   TipoHucha,
@@ -31,6 +32,7 @@ export interface Database {
           saldo_actual: number
           fecha_limite: string | null
           pagada_at: string | null
+          banco_id: string | null
           created_at: string
         }
         Insert: {
@@ -39,6 +41,7 @@ export interface Database {
           finalidad?: FinalidadHucha
           objetivo?: number
           fecha_limite?: string | null
+          banco_id?: string | null
         }
         Update: {
           nombre?: string
@@ -46,8 +49,16 @@ export interface Database {
           finalidad?: FinalidadHucha
           objetivo?: number
           fecha_limite?: string | null
+          banco_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "huchas_banco_id_fkey"
+            columns: ["banco_id"]
+            referencedRelation: "bancos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       movimientos: {
         Row: {
@@ -93,6 +104,7 @@ export interface Database {
           mes_fin: string | null
           hucha_id: string | null
           descripcion: string | null
+          categoria_id: string | null
           created_at: string
         }
         Insert: {
@@ -104,6 +116,7 @@ export interface Database {
           mes_fin?: string | null
           hucha_id?: string | null
           descripcion?: string | null
+          categoria_id?: string | null
         }
         Update: {
           tipo?: TipoPartida
@@ -114,12 +127,19 @@ export interface Database {
           mes_fin?: string | null
           hucha_id?: string | null
           descripcion?: string | null
+          categoria_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "partidas_hucha_id_fkey"
             columns: ["hucha_id"]
             referencedRelation: "huchas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partidas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            referencedRelation: "categorias"
             referencedColumns: ["id"]
           },
         ]
@@ -155,6 +175,42 @@ export interface Database {
           },
         ]
       }
+      categorias: {
+        Row: {
+          id: string
+          usuario_id: string
+          nombre: string
+          color: ColorEtiqueta
+          created_at: string
+        }
+        Insert: {
+          nombre: string
+          color?: ColorEtiqueta
+        }
+        Update: {
+          nombre?: string
+          color?: ColorEtiqueta
+        }
+        Relationships: []
+      }
+      bancos: {
+        Row: {
+          id: string
+          usuario_id: string
+          nombre: string
+          color: ColorEtiqueta
+          created_at: string
+        }
+        Insert: {
+          nombre: string
+          color?: ColorEtiqueta
+        }
+        Update: {
+          nombre?: string
+          color?: ColorEtiqueta
+        }
+        Relationships: []
+      }
     }
     Views: Record<never, never>
     Functions: {
@@ -177,6 +233,7 @@ export interface Database {
       tipo_movimiento: TipoMovimiento
       tipo_partida: TipoPartida
       frecuencia_partida: Frecuencia
+      color_etiqueta: ColorEtiqueta
     }
     CompositeTypes: Record<never, never>
   }

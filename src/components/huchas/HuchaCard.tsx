@@ -1,13 +1,14 @@
 import { Link } from "react-router-dom"
 import { Card, ProgressBar, Text } from "@tremor/react"
 import { CheckCircle2 } from "lucide-react"
+import { EtiquetaBadge } from "@/components/etiquetas/EtiquetaBadge"
 import { formatEuro, formatFecha, formatPorcentaje } from "@/lib/format"
 import { nombreMes } from "@/lib/presupuesto"
 import { cn } from "@/lib/utils"
-import { ETIQUETA_TIPO_HUCHA, progresoHucha, type Hucha } from "@/types/domain"
+import { ETIQUETA_TIPO_HUCHA, progresoHucha, type Banco, type Hucha } from "@/types/domain"
 import { ESTILO_TIPO } from "./estilos"
 
-export function HuchaCard({ hucha }: { hucha: Hucha }) {
+export function HuchaCard({ hucha, banco }: { hucha: Hucha; banco?: Banco }) {
   const estilo = ESTILO_TIPO[hucha.tipo]
   const Icono = estilo.icono
   const esPago = hucha.finalidad === "pago"
@@ -51,6 +52,7 @@ export function HuchaCard({ hucha }: { hucha: Hucha }) {
               )}
             </div>
             <Text className="first-letter:uppercase">{subtitulo}</Text>
+            {banco && !pagada && <EtiquetaBadge nombre={banco.nombre} color={banco.color} className="mt-1" />}
           </div>
         </div>
 
