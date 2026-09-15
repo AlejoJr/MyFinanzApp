@@ -45,6 +45,15 @@ function ok(condicion, texto, detalle) {
   if (!condicion) fallos++
 }
 
+console.log("0) Cron anti-pausa: mantener_activo() responde sin sesión (0009)")
+try {
+  const { data: hora, error: errCron } = await supabase.rpc("mantener_activo")
+  ok(!errCron && typeof hora === "string", "el rol anon puede llamarla (así lo hace el cron de Vercel)", errCron?.message ?? hora)
+} catch (e) {
+  ok(false, "el rol anon puede llamarla (así lo hace el cron de Vercel)", e.message)
+}
+console.log()
+
 const email = process.env.TEST_EMAIL || (await preguntar("Email: "))
 const password =
   process.env.TEST_PASSWORD || (await preguntar("Contraseña (no se muestra): ", true))
@@ -217,6 +226,36 @@ try {
   const esperado = [[72, sumarMes(mesHoy, -2), sumarMes(mesHoy, -1)], [34, mesHoy, null]]
   const real = (tramos ?? []).map((t) => [Number(t.importe), t.mes_inicio, t.mes_fin])
   ok(JSON.stringify(real) === JSON.stringify(esperado), "72 € hasta el mes pasado y 34 € desde este mes", JSON.stringify(real))
+
+  console.log("   Descripción libre en las partidas (0010)")
+  const conDescripcion = await supabase
+    .from("partidas")
+    .insert({
+      tipo: "gasto", concepto: "__prueba_seguro__", importe: 45, mes_inicio: mesHoy,
+      descripcion: "Mapfre, póliza 12345, cubre vida y hogar",
+    })
+    .select()
+    .single()
+  ok(!conDescripcion.error && conDescripcion.data, "se crea una partida con descripción", conDescripcion.error?.message)
+  ok(
+    conDescripcion.data?.descripcion === "Mapfre, póliza 12345, cubre vida y hogar",
+    "la descripción se guarda tal cual",
+    conDescripcion.data?.descripcion,
+  )
+  const descripcionLarga = await supabase
+    .from("partidas")
+    .insert({ tipo: "gasto", concepto: "__prueba_descripcion_larga__", importe: 10, mes_inicio: mesHoy, descripcion: "x".repeat(501) })
+  ok(descripcionLarga.error?.code === "23514", "una descripción de más de 500 caracteres se rechaza", descripcionLarga.error?.code ?? "se aceptó")
+  const sinDescripcion = await supabase
+    .from("partidas")
+    .insert({ tipo: "gasto", concepto: "__prueba_sin_descripcion__", importe: 10, mes_inicio: mesHoy })
+    .select()
+    .single()
+  ok(
+    !sinDescripcion.error && sinDescripcion.data?.descripcion === null,
+    "sin descripción, queda en null",
+    JSON.stringify(sinDescripcion.data?.descripcion),
+  )
 
   console.log("10) Huchas «Para pagar» (0007)")
   const inventada = await supabase

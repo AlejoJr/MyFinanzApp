@@ -92,6 +92,8 @@ export interface Partida {
   mes_fin: string | null
   /** Solo en ahorro: al marcar el mes, el importe entra en esta hucha. */
   hucha_id: string | null
+  /** Detalle opcional (hasta 500 caracteres): aseguradora, nº de póliza, qué cubre... */
+  descripcion: string | null
   created_at: string
 }
 

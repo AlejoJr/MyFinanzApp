@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { actualizarPartida, crearPartida } from "@/lib/api-presupuesto"
 import { importeATexto, parseImporte } from "@/lib/formularios"
 import { sumarMeses, type Mes } from "@/lib/presupuesto"
@@ -37,6 +38,7 @@ import {
 import { CampoMes } from "./CampoMes"
 
 const SIN_HUCHA = "ninguna" // Radix Select no admite "" como valor
+const MAX_DESCRIPCION = 500
 
 const COLOR_TIPO: Record<TipoPartida, string> = {
   ingreso: "border-emerald-600 bg-emerald-50 text-emerald-700",
@@ -67,6 +69,7 @@ export function PartidaFormDialog({
   const editando = Boolean(partida)
   const [tipo, setTipo] = useState<TipoPartida>(tipoPorDefecto)
   const [concepto, setConcepto] = useState("")
+  const [descripcion, setDescripcion] = useState("")
   const [importe, setImporte] = useState("")
   const [frecuencia, setFrecuencia] = useState<Frecuencia>("mensual")
   const [inicio, setInicio] = useState<Mes>(mesPorDefecto)
@@ -81,6 +84,7 @@ export function PartidaFormDialog({
     if (!open) return
     setTipo(partida?.tipo ?? tipoPorDefecto)
     setConcepto(partida?.concepto ?? "")
+    setDescripcion(partida?.descripcion ?? "")
     setImporte(partida ? importeATexto(partida.importe) : "")
     setFrecuencia(partida?.frecuencia ?? "mensual")
     setInicio(partida?.mes_inicio ?? mesPorDefecto)
@@ -97,6 +101,10 @@ export function PartidaFormDialog({
     const conceptoLimpio = concepto.trim()
     if (!conceptoLimpio) return setError("Ponle un nombre, por ejemplo: Alquiler, Sueldo o Colchón financiero.")
     if (conceptoLimpio.length > 80) return setError("El nombre no puede superar los 80 caracteres.")
+    const descripcionLimpia = descripcion.trim()
+    if (descripcionLimpia.length > MAX_DESCRIPCION) {
+      return setError(`La descripción no puede superar los ${MAX_DESCRIPCION} caracteres.`)
+    }
     const valor = parseImporte(importe)
     if (valor === null || valor <= 0) return setError("Introduce un importe mayor que cero, por ejemplo 208 o 34,99.")
     const usaFin = frecuencia !== "puntual" && conFin
@@ -107,6 +115,7 @@ export function PartidaFormDialog({
       const datos = {
         tipo,
         concepto: conceptoLimpio,
+        descripcion: descripcionLimpia || null,
         importe: valor,
         frecuencia,
         mes_inicio: inicio,
@@ -196,6 +205,23 @@ export function PartidaFormDialog({
                 disabled={guardando}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="partida-descripcion">Descripción (opcional)</Label>
+            <Textarea
+              id="partida-descripcion"
+              rows={2}
+              maxLength={MAX_DESCRIPCION}
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Aseguradora, nº de póliza, qué cubre…"
+              disabled={guardando}
+              aria-describedby="ayuda-descripcion"
+            />
+            <p id="ayuda-descripcion" className="text-xs text-muted-foreground">
+              Para detalles que no caben en el nombre, como en un seguro de vida u hogar.
+            </p>
           </div>
 
           <div className="space-y-2">

@@ -17,15 +17,18 @@ export interface DatosPartida {
   mes_inicio: Mes
   mes_fin: Mes | null
   hucha_id: string | null
+  /** Detalle opcional (aseguradora, nº de póliza, qué cubre...). Omitido = sin descripción. */
+  descripcion?: string | null
 }
 
-// Las mismas reglas que las CHECK de 0005: así el error no llega a la base
-// de datos por un campo que ni siquiera se ve en el formulario.
+// Las mismas reglas que las CHECK de 0005 y 0010: así el error no llega a
+// la base de datos por un campo que ni siquiera se ve en el formulario.
 const normalizar = (d: DatosPartida) => ({
   ...d,
   concepto: d.concepto.trim(),
   mes_fin: d.frecuencia === "puntual" ? null : d.mes_fin,
   hucha_id: d.tipo === "ahorro" ? d.hucha_id : null,
+  descripcion: d.descripcion?.trim() || null,
 })
 
 export async function listarPartidas(): Promise<Partida[]> {

@@ -1,10 +1,10 @@
 -- =====================================================================
 -- MyFinanzApp · Verificacion post-migracion
--- Ejecutar en el SQL Editor tras aplicar 0001 a 0008.
+-- Ejecutar en el SQL Editor tras aplicar 0001 a 0010.
 --
 -- El editor de Supabase solo muestra el resultado de la ULTIMA consulta,
 -- asi que las comprobaciones van unidas en una sola tabla. Deben salir
--- 25 filas y todas deben empezar por OK.
+-- 27 filas y todas deben empezar por OK.
 -- =====================================================================
 
 with
@@ -72,7 +72,7 @@ columnas as (
     and (   (table_name = 'movimientos'   and column_name = 'usuario_id')
          or (table_name = 'huchas'        and column_name in ('saldo_actual', 'finalidad',
                                                               'fecha_limite', 'pagada_at'))
-         or (table_name = 'partidas'      and column_name = 'hucha_id')
+         or (table_name = 'partidas'      and column_name in ('hucha_id', 'descripcion'))
          or (table_name = 'pagos_partida' and column_name = 'movimiento_id'))
   group by table_name, column_name
 ),
@@ -153,6 +153,17 @@ objetivo_ahorro as (
   from pg_constraint
   where conname = 'huchas_limite_solo_pago'
     and conrelid = 'public.huchas'::regclass
+),
+-- 13) 0009: mantener_activo existe y anon SI puede ejecutarla (al reves
+--     que el resto: la llama un cron sin sesion)
+cron_funcion as (
+  select
+    case when to_regprocedure('public.mantener_activo()') is null
+           then 'FALLO falta la funcion mantener_activo (ejecuta 0009)'
+         when not has_function_privilege('anon', 'public.mantener_activo()', 'execute')
+           then 'FALLO anon no puede ejecutar mantener_activo (el cron de Vercel la necesita sin sesion)'
+         else 'OK funcion mantener_activo ejecutable sin sesion (para el cron anti-pausa)' end as resultado,
+    13 as orden, '' as sub
 )
 select resultado
 from (
@@ -168,5 +179,6 @@ from (
   union all select * from funciones
   union all select * from alta_hucha
   union all select * from objetivo_ahorro
+  union all select * from cron_funcion
 ) t
 order by orden, sub;

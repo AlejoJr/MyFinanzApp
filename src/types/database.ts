@@ -92,6 +92,7 @@ export interface Database {
           mes_inicio: string
           mes_fin: string | null
           hucha_id: string | null
+          descripcion: string | null
           created_at: string
         }
         Insert: {
@@ -102,6 +103,7 @@ export interface Database {
           mes_inicio: string
           mes_fin?: string | null
           hucha_id?: string | null
+          descripcion?: string | null
         }
         Update: {
           tipo?: TipoPartida
@@ -111,6 +113,7 @@ export interface Database {
           mes_inicio?: string
           mes_fin?: string | null
           hucha_id?: string | null
+          descripcion?: string | null
         }
         Relationships: [
           {
@@ -162,6 +165,10 @@ export interface Database {
       pagar_hucha: {
         Args: { p_hucha: string; p_nota?: string | null }
         Returns: undefined
+      }
+      mantener_activo: {
+        Args: Record<string, never>
+        Returns: string
       }
     }
     Enums: {

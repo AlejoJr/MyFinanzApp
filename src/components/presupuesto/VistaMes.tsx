@@ -218,6 +218,11 @@ function FilaLinea({
         {detalles.length > 0 && (
           <p className="truncate text-xs text-muted-foreground">{detalles.join(" · ")}</p>
         )}
+        {partida.descripcion && (
+          <p className="truncate text-xs italic text-muted-foreground/80" title={partida.descripcion}>
+            {partida.descripcion}
+          </p>
+        )}
       </button>
 
       <span className="shrink-0 text-sm font-semibold tabular-nums">{formatEuro(partida.importe)}</span>
